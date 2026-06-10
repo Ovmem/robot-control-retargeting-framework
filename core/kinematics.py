@@ -21,7 +21,6 @@ def fk(q):
 
     return np.array([x, y])
 
-
 def ik(x, y):
 
     c2 = (
@@ -65,6 +64,60 @@ def jacobian(q):
             +L2*np.cos(q1+q2),
 
             L2*np.cos(q1+q2)
+        ]
+    ])
+
+    return J
+
+def fk_3dof(q):
+
+    q1, q2, q3 = q
+
+    l1 = 0.5
+    l2 = 0.3
+    l3 = 0.2
+
+    x = (
+        l1 * np.cos(q1)
+        + l2 * np.cos(q1 + q2)
+        + l3 * np.cos(q1 + q2 + q3)
+    )
+
+    y = (
+        l1 * np.sin(q1)
+        + l2 * np.sin(q1 + q2)
+        + l3 * np.sin(q1 + q2 + q3)
+    )
+
+    return np.array([x, y])
+
+def jacobian_3dof(q):
+
+    q1, q2, q3 = q
+
+    l1 = 0.5
+    l2 = 0.3
+    l3 = 0.2
+
+    s1 = np.sin(q1)
+    c1 = np.cos(q1)
+
+    s12 = np.sin(q1 + q2)
+    c12 = np.cos(q1 + q2)
+
+    s123 = np.sin(q1 + q2 + q3)
+    c123 = np.cos(q1 + q2 + q3)
+
+    J = np.array([
+        [
+            -l1*s1 - l2*s12 - l3*s123,
+            -l2*s12 - l3*s123,
+            -l3*s123
+        ],
+        [
+            l1*c1 + l2*c12 + l3*c123,
+            l2*c12 + l3*c123,
+            l3*c123
         ]
     ])
 
