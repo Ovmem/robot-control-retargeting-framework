@@ -1,0 +1,98 @@
+<mujoco model="arm6dof">
+
+    <option gravity="0 0 0"/>
+
+    <worldbody>
+
+        <light pos="0 0 3"/>
+
+        <body name="base" pos="0 0 0">
+
+            <!-- Joint1 yaw -->
+            <joint name="j1"
+                   type="hinge"
+                   axis="0 0 1"/>
+
+            <geom type="capsule"
+                  fromto="0 0 0 0.4 0 0"
+                  size="0.03"/>
+
+            <body name="link1"
+                  pos="0.4 0 0">
+
+                <!-- Joint2 pitch -->
+                <joint name="j2"
+                       type="hinge"
+                       axis="0 1 0"/>
+
+                <geom type="capsule"
+                      fromto="0 0 0 0.35 0 0"
+                      size="0.03"/>
+
+                <body name="link2"
+                      pos="0.35 0 0">
+
+                    <!-- Joint3 pitch -->
+                    <joint name="j3"
+                           type="hinge"
+                           axis="0 1 0"/>
+
+                    <geom type="capsule"
+                          fromto="0 0 0 0.3 0 0"
+                          size="0.03"/>
+
+                    <body name="link3"
+                          pos="0.3 0 0">
+
+                        <!-- Joint4 roll -->
+                        <joint name="j4"
+                               type="hinge"
+                               axis="1 0 0"/>
+
+                        <geom type="capsule"
+                              fromto="0 0 0 0.25 0 0"
+                              size="0.025"/>
+
+                        <body name="link4"
+                              pos="0.25 0 0">
+
+                            <!-- Joint5 pitch -->
+                            <joint name="j5"
+                                   type="hinge"
+                                   axis="0 1 0"/>
+
+                            <geom type="capsule"
+                                  fromto="0 0 0 0.2 0 0"
+                                  size="0.02"/>
+
+                            <body name="link5"
+                                  pos="0.2 0 0">
+
+                                <!-- Joint6 roll -->
+                                <joint name="j6"
+                                       type="hinge"
+                                       axis="1 0 0"/>
+
+                                <geom type="capsule"
+                                      fromto="0 0 0 0.15 0 0"
+                                      size="0.02"/>
+
+                                <site name="ee"
+                                      pos="0.15 0 0"
+                                      size="0.02"/>
+
+                            </body>
+
+                        </body>
+
+                    </body>
+
+                </body>
+
+            </body>
+
+        </body>
+
+    </worldbody>
+
+</mujoco>
