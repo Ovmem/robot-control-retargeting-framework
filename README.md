@@ -1,83 +1,31 @@
-# Robot Control Project
+# 机器人运动控制与动作映射框架
 
-A robotics control learning project based on MuJoCo and Python.
+基于 MuJoCo 的机器人运动控制与动作映射框架，实现了从机器人运动学、逆运动学、冗余自由度控制到可操作度优化等核心算法，并为后续人体动作映射（Motion Retargeting）与机器人控制算法验证提供统一仿真平台。
 
-This project implements the fundamental algorithms used in robot motion control, including Forward Kinematics, Inverse Kinematics, Jacobian-based differential kinematics, joint-space PD control, and end-effector trajectory tracking.
+## 项目特点
 
-## Features
+* 正运动学（Forward Kinematics）
+* 雅可比矩阵计算（Jacobian）
+* 位置逆运动学（Position IK）
+* 位姿逆运动学（Pose IK）
+* 四元数与旋转向量姿态表示
+* 冗余机械臂 Null Space 控制
+* Task Priority 任务优先级控制
+* Manipulability 可操作度优化
+* MuJoCo 机器人仿真验证
 
-* Forward Kinematics (FK)
-* Inverse Kinematics (IK)
-* Jacobian Matrix Computation
-* Joint Space PD Control
-* Velocity Control
-* End-Effector Circular Trajectory Tracking
+## 当前支持机器人
 
-## Environment
+* Franka Panda 7自由度机械臂
 
-* Python 3.10
-* MuJoCo 3.9
+## 技术栈
+
+* Python
 * NumPy
-* Matplotlib
+* SciPy
+* MuJoCo
+* Git
 
-## Results
+## 项目目标
 
-Trajectory Tracking Performance:
-
-* Average Error ≈ 0.024 m
-* RMSE ≈ 0.024 m
-
-## Project Structure
-
-```text
-robot_control_project
-│
-├─core
-│   └── kinematics.py
-│
-├─demos
-│   ├── pd_control.py
-│   ├── ik_control.py
-│   └── trajectory_tracking.py
-│   ├── velocity_control.py
-│
-├─models
-│      arm2d.xml
-│
-├─tests
-│      test_jacobian.py
-│
-├─results
-│      trajectory_tracking.png
-│      tracking_error.png
-│
-└─__pycache__
-        kinematics.cpython-310.pyc
-```
-
-## Results
-
-### Circular Trajectory Tracking
-
-![Trajectory](results/trajectory_tracking.png)
-
-### Tracking Error
-
-![Error](results/tracking_error.png)
-
-Average Error ≈ 0.024 m
-
-RMSE ≈ 0.024 m
-
-## Future Work
-
-* Differential Inverse Kinematics
-* Motion Retargeting
-* Whole-Body Control
-* Humanoid Robot Control
-
-## Retargeting Demo
-
-A synthetic human hand trajectory is mapped to a 3-DOF robotic manipulator through Jacobian-based task-space control.
-
-![Retargeting](results/retargeting_demo.png)
+构建面向机器人运控与具身智能的数据采集验证平台，逐步扩展动力学控制、轨迹规划、人体动作映射（Motion Retargeting）等功能。
