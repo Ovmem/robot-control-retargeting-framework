@@ -1,0 +1,6 @@
+mujoco
+numpy
+scipy
+matplotlib
+opencv-python
+mediapipe
