@@ -2,132 +2,132 @@
 
 基于 MuJoCo 和 Franka Panda 的机器人运动控制与手部输入动作映射原型。
 
-本项目面向具身智能机器人运动控制、仿真算法和 Motion Retargeting 相关实习展示，重点不是工业现场部署、嵌入式电机驱动或完整人形机器人系统，而是通过可运行的 MuJoCo 仿真代码展示以下能力：
+本项目面向“具身智能机器人运动控制 / 仿真算法 / Motion Retargeting 实习”展示，重点不是传统嵌入式、电机驱动、工业机械臂现场调试，也不是把项目包装成完整 VLA、完整人形机器人全身控制或足式机器人强化学习系统。当前目标是通过可运行的 MuJoCo 仿真代码展示：
 
 * 机械臂 FK / IK / Jacobian / Pose IK 基础算法；
-* Franka Panda 七自由度机械臂的冗余控制、Null Space、Task Priority 和 Manipulability 分析；
+* Franka Panda 七自由度机械臂的 Null Space、Task Priority 和 Manipulability 分析；
 * 关节空间 PD、Gravity Compensation、Task-space PD / Impedance-style control；
 * MediaPipe hand input 到 Panda 末端目标位姿的 hand-to-Panda retargeting prototype；
 * 实验数据记录、曲线绘制和可复现实验流程整理。
 
 当前 retargeting 部分定位为：**手部视觉输入到 Franka Panda 末端目标位姿的动作映射原型**。它不是完整 VLA 系统，也不是完整人形机器人全身 Motion Retargeting 系统。
 
-## Project Structure
+## 项目结构
 
 ```text
 robot_control_retargeting_framework/
 ├── core/
-│   ├── controller.py              # damped pseudo-inverse helper
-│   ├── dynamics_control.py         # Panda torque control, gravity compensation, task-space control
-│   ├── jacobian_3d.py              # numerical Jacobian for simple 3D arm
-│   ├── kinematics.py               # 2D / 3-DoF planar FK, IK, Jacobian
-│   ├── kinematics_3d.py            # simple 3D arm FK
-│   └── pose_ik.py                  # reserved for pose IK interface, currently empty
+│   ├── controller.py              # 阻尼伪逆辅助函数
+│   ├── dynamics_control.py         # Panda 力矩控制、重力补偿、任务空间控制
+│   ├── jacobian_3d.py              # 简化 3D 机械臂数值雅可比
+│   ├── kinematics.py               # 2D / 3-DoF 平面机械臂 FK、IK、Jacobian
+│   ├── kinematics_3d.py            # 简化 3D 机械臂 FK
+│   └── pose_ik.py                  # 预留 Pose IK 接口，目前为空
 │
 ├── retargeting/
-│   └── hand_to_panda.py            # hand landmarks -> Panda target pose / gripper command
+│   └── hand_to_panda.py            # 手部 landmarks -> Panda 目标位姿 / 夹爪指令
 │
 ├── vision/
-│   ├── hand_tracker.py             # reusable MediaPipe Hands wrapper
-│   └── mediapipe_hand.py           # early standalone MediaPipe demo
+│   ├── hand_tracker.py             # 可复用 MediaPipe Hands 封装
+│   └── mediapipe_hand.py           # 早期独立 MediaPipe demo
 │
 ├── demos/
-│   ├── panda/                      # main Panda demos for interview presentation
-│   ├── ik/                         # IK demos for simple arms and MuJoCo arms
-│   ├── pose_ik/                    # 6D pose IK demos
-│   ├── jacobian/                   # Jacobian velocity mapping demos
-│   ├── nullspace/                  # simple null-space control demo
-│   ├── retargeting/                # hand tracker and simple retargeting demos
-│   ├── trajectory/                 # trajectory tracking demos
-│   └── visualization/              # model visualization helpers
+│   ├── panda/                      # 面试展示主线：Panda 控制与 retargeting demo
+│   ├── ik/                         # 简化机械臂和 MuJoCo 机械臂 IK demo
+│   ├── pose_ik/                    # 6D 位姿 IK demo
+│   ├── jacobian/                   # Jacobian 速度映射 demo
+│   ├── nullspace/                  # 简化 Null Space 控制 demo
+│   ├── retargeting/                # 手部检测和简化 retargeting demo
+│   ├── trajectory/                 # 轨迹跟踪 demo
+│   └── visualization/              # 模型可视化辅助脚本
 │
 ├── models/
 │   ├── arm2d.xml
 │   ├── arm3d.xml
 │   ├── arm3dof.xml
 │   ├── arm6dof.xml
-│   └── panda/                      # Franka Panda MJCF model and mesh assets
+│   └── panda/                      # Franka Panda MJCF 模型和 mesh 资源
 │
 ├── scripts/
-│   └── plot_dynamics_results.py    # plot dynamics-control CSV logs and metrics
+│   └── plot_dynamics_results.py    # 绘制控制实验 CSV 日志和指标
 │
 ├── results/
-│   ├── dynamics/                   # CSV logs, plots, metrics for control experiments
-│   └── *.png                       # earlier demo result figures
+│   ├── dynamics/                   # 控制实验 CSV、曲线和 metrics
+│   └── *.png                       # 早期 demo 结果图
 │
-├── tests/                          # validation scripts, not guaranteed one-command pytest suite
+├── tests/                          # 验证脚本集合，不保证一键 pytest 通过
 ├── requirements.txt
 └── README.md
 ```
 
-## Core Modules
+## 核心模块
 
-### Kinematics, IK and Jacobian
+### 运动学、IK 与 Jacobian
 
-The repository contains simple-arm FK / IK / Jacobian implementations and MuJoCo-based Panda demos. These scripts are mainly used to explain the control stack step by step before moving to the 7-DoF Panda model:
+仓库包含简化机械臂的 FK / IK / Jacobian 实现，以及基于 MuJoCo 的 Panda demo。这些脚本主要用于把控制链路从基础算法逐步过渡到 7 自由度 Panda：
 
-* FK and IK for 2D / 3-DoF toy arms;
-* numerical Jacobian checks;
-* 6D pose error using rotation vectors;
-* damped pseudo-inverse based IK demos.
+* 2D / 3-DoF toy arm 的 FK 和 IK；
+* 数值 Jacobian 验证；
+* 基于旋转向量的 6D 位姿误差；
+* 基于伪逆 / 阻尼伪逆的 IK demo。
 
-### Redundancy Control
+### 冗余控制
 
-Franka Panda has 7 DoF, so it can use redundancy when tracking an end-effector task. The Panda demos cover:
+Franka Panda 是 7 自由度机械臂，在完成末端任务时存在冗余自由度。Panda 相关 demo 覆盖：
 
-* Null-space projection;
-* Task-priority IK;
-* joint-limit avoidance;
-* manipulability metric and numerical-gradient based optimization.
+* Null Space Projection；
+* Task Priority IK；
+* Joint Limit Avoidance；
+* Manipulability 指标和数值梯度优化。
 
-These are useful for interviews about robot motion control and simulation because they connect Jacobian-based control with redundant manipulator behavior.
+这些内容适合支撑机器人运动控制和仿真算法面试，因为它们把 Jacobian 控制、冗余机械臂行为和构型优化联系在一起。
 
-### Dynamics and Task-space Control
+### 动力学与任务空间控制
 
-The main reusable controller lives in `core/dynamics_control.py`. It includes:
+主要可复用控制器位于 `core/dynamics_control.py`，包括：
 
-* joint-space PD torque control;
-* PD + gravity compensation through MuJoCo bias / gravity torque;
-* inverse-dynamics torque helper;
-* task-space PD / impedance-style control;
-* Jacobian-transpose wrench-to-torque mapping;
-* optional torque clipping and null-space torque projection.
+* 关节空间 PD 力矩控制；
+* 基于 MuJoCo bias / gravity torque 的 PD + Gravity Compensation；
+* inverse dynamics torque 辅助函数；
+* Task-space PD / Impedance-style control；
+* Jacobian transpose 的 wrench-to-torque 映射；
+* 可选力矩裁剪和 Null Space torque projection。
 
-The current PD vs. PD + Gravity Compensation experiment is primarily a reproducible comparison pipeline. Existing metrics may still depend strongly on gains and model actuator settings, so this repository does **not** claim that PD + Gravity Compensation is always significantly better than PD under the current parameters. Control gains still need tuning.
+当前 PD 与 PD + Gravity Compensation 实验主要用于建立可复现的对比流程。已有 metrics 会受到控制增益和模型 actuator 设置影响，因此本项目**不声称**当前参数下 PD + Gravity Compensation 一定显著优于 PD；控制增益仍需继续整定。
 
-### Hand Input and Retargeting Prototype
+### 手部输入与 Retargeting 原型
 
-The hand-input pipeline is:
+手部输入链路如下：
 
 ```text
-camera image
-    -> MediaPipe Hands 21 landmarks
+摄像头图像
+    -> MediaPipe Hands 21 个手部关键点
     -> wrist / palm frame / pinch ratio
-    -> Panda end-effector target position, target orientation, gripper-width command
-    -> task-space torque controller
-    -> MuJoCo Panda response
+    -> Panda 末端目标位置、目标姿态、夹爪宽度指令
+    -> 任务空间力矩控制器
+    -> MuJoCo Panda 响应
 ```
 
-Current mapping:
+当前映射关系：
 
 ```text
-wrist horizontal image motion -> Panda end-effector y motion
-wrist vertical image motion   -> Panda end-effector z motion
-palm frame                    -> Panda end-effector orientation target
-thumb-index distance          -> gripper-width command interface
+手腕在图像中左右移动 -> Panda 末端 y 方向运动
+手腕在图像中上下移动 -> Panda 末端 z 方向运动
+手掌坐标系           -> Panda 末端目标姿态
+拇指-食指距离        -> 夹爪宽度指令接口
 ```
 
-For stability, the current demo focuses mainly on image-plane y / z motion. Depth mapping, orientation calibration and gripper integration are still being tuned.
+为了保证演示稳定，当前 demo 主要验证图像平面内的 y / z 运动。深度方向映射、姿态标定和夹爪闭环接入仍在整理中。
 
-## Environment
+## 环境配置
 
-Python 3.10 or 3.11 is recommended.
+推荐使用 Python 3.10 或 3.11。
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Dependencies:
+主要依赖：
 
 ```text
 mujoco
@@ -138,17 +138,17 @@ opencv-python
 mediapipe
 ```
 
-Run commands from the repository root. On Windows PowerShell, prefer `python -m ...` for package-style demos.
+请在仓库根目录运行命令。Windows PowerShell 下推荐使用 `python -m ...` 的方式运行 package-style demo。
 
-## Recommended Runs
+## 推荐运行命令
 
-The three main reproducible commands are:
+三条主线可复现命令：
 
 ```bash
 python -m demos.panda.demo_joint_pd_gc
 ```
 
-This runs the joint-space PD vs. PD + Gravity Compensation comparison and writes:
+该命令运行关节空间 PD 与 PD + Gravity Compensation 的对比实验，并输出：
 
 ```text
 results/dynamics/joint_pd_only.csv
@@ -159,7 +159,7 @@ results/dynamics/joint_pd_gc.csv
 python -m demos.panda.demo_task_space_impedance
 ```
 
-This runs task-space PD / impedance-style end-effector tracking and writes:
+该命令运行 task-space PD / impedance-style 末端跟踪实验，并输出：
 
 ```text
 results/dynamics/task_space_impedance.csv
@@ -169,7 +169,7 @@ results/dynamics/task_space_impedance.csv
 python scripts/plot_dynamics_results.py
 ```
 
-This plots the saved CSV files and writes:
+该命令读取已保存的 CSV 文件并绘图，输出：
 
 ```text
 results/dynamics/pd_gc_tracking_curve.png
@@ -178,60 +178,60 @@ results/dynamics/task_space_impedance_error_curve.png
 results/dynamics/metrics.csv
 ```
 
-Optional real-time hand retargeting demo:
+可选实时手部 retargeting demo：
 
 ```bash
 python -m demos.panda.demo_hand_retargeting_pd_gc
 ```
 
-This demo requires a working camera, OpenCV GUI windows and MuJoCo viewer support. It starts both the MediaPipe hand window and the MuJoCo simulation viewer.
+该 demo 需要可用摄像头、OpenCV GUI 窗口和 MuJoCo viewer 支持。运行后会同时启动 MediaPipe 手部窗口和 MuJoCo 仿真窗口。
 
-## Results and Interpretation
+## 结果解释
 
-The repository includes saved dynamics CSV files and figures under `results/dynamics/`. These files are intended to show the experiment pipeline:
+仓库在 `results/dynamics/` 下保存了 dynamics 实验 CSV、曲线图和 metrics。这些文件主要用于展示实验流程：
 
-* run a control demo;
-* record target, actual state, errors and torques;
-* plot tracking curves and summary metrics.
+* 运行控制 demo；
+* 记录目标、实际状态、误差和力矩；
+* 绘制 tracking 曲线和 summary metrics。
 
-Because the controller gains are still being tuned, treat the current PD / PD + Gravity Compensation curves as a comparison setup rather than a final optimized benchmark.
+由于控制器增益仍在整定，当前 PD / PD + Gravity Compensation 曲线应被理解为“对比实验流程”，不是最终优化 benchmark。
 
-## Tests and Validation Scripts
+## Tests 与验证脚本
 
-`tests/` currently contains validation scripts and exploratory checks for kinematics, Jacobian, Panda model loading, gravity compensation, null-space behavior and orientation errors.
+`tests/` 当前更偏验证脚本和探索性检查集合，覆盖 kinematics、Jacobian、Panda 模型加载、重力补偿、Null Space、姿态误差等内容。
 
-It is **not** yet a polished one-command pytest suite. Some scripts print intermediate values, and some may open MuJoCo viewers. For interview presentation, the recommended reproducible path is the three commands in the `Recommended Runs` section.
+它目前还不是一个整理完善的“一键 pytest 测试套件”。部分脚本会打印中间值，部分脚本可能打开 MuJoCo viewer。面试展示时建议优先使用 `推荐运行命令` 一节中的三条主线命令。
 
-## Limitations
+## 当前局限
 
-Current limitations are explicit:
+当前项目的边界如下：
 
-1. This is not a complete VLA system.
-2. This is not a complete full-body humanoid Motion Retargeting system.
-3. This is not a full legged-robot reinforcement-learning project.
-4. The controller has only been validated in MuJoCo simulation, not on a real robot.
-5. Hand retargeting currently maps hand input to Panda end-effector targets, not full human-body motion to a humanoid robot.
-6. Monocular depth mapping and palm-orientation calibration are still under tuning.
-7. The gripper-width command exists in the retargeting interface, but full gripper closed-loop integration still needs cleanup.
+1. 不是完整 VLA 系统。
+2. 不是完整人形机器人全身 Motion Retargeting 系统。
+3. 不是完整足式机器人强化学习项目。
+4. 控制器目前只在 MuJoCo 仿真中验证，尚未部署到真实机器人。
+5. Hand retargeting 当前是手部输入到 Panda 末端目标的映射，不是人体全身动作到人形机器人的映射。
+6. 单目深度方向映射和手掌姿态标定仍在调试。
+7. retargeting 接口中已有 gripper-width command，但夹爪完整闭环接入仍需清理。
 
-## Project Status
+## 项目状态
 
-Completed or partially completed:
+已完成或部分完成：
 
-* Franka Panda MuJoCo model loading;
-* FK / IK / Jacobian / Pose IK demos;
-* Null Space, Task Priority and Manipulability demos;
-* joint-space PD and gravity-compensation comparison pipeline;
-* task-space PD / impedance-style control demo;
-* MediaPipe hand input wrapper;
-* hand-to-Panda end-effector target mapping prototype.
+* Franka Panda MuJoCo 模型加载；
+* FK / IK / Jacobian / Pose IK demo；
+* Null Space、Task Priority 和 Manipulability demo；
+* 关节空间 PD 与 Gravity Compensation 对比实验流程；
+* Task-space PD / Impedance-style control demo；
+* MediaPipe hand input 封装；
+* hand-to-Panda 末端目标映射原型。
 
-Interview-preparation TODOs:
+面试前 TODO：
 
-* tune control gains and refresh dynamics metrics;
-* add a short demo video or GIF for the hand retargeting demo;
-* separate true automated tests from interactive validation scripts;
-* clean empty or thin modules such as `core/pose_ik.py`;
-* document camera calibration and coordinate-frame conventions for retargeting;
-* clean old run logs such as `MUJOCO_LOG.TXT` before publishing.
+* 继续整定控制增益，并刷新 `results/dynamics/metrics.csv`；
+* 为 hand retargeting demo 补充短视频或 GIF；
+* 区分真正自动化测试和交互式验证脚本；
+* 清理或补全 `core/pose_ik.py` 等空/薄模块；
+* 补充 retargeting 的相机标定和坐标系约定说明；
+* 发布前清理旧运行日志，例如 `MUJOCO_LOG.TXT`。
 
