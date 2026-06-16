@@ -223,9 +223,26 @@ python -m demos.panda.demo_hand_retargeting_pd_gc
 
 ## Tests 与验证脚本
 
-`tests/` 当前更偏验证脚本和探索性检查集合，覆盖 kinematics、Jacobian、Panda 模型加载、重力补偿、Null Space、姿态误差等内容。
+`tests/` 包含两类测试：
 
-它目前还不是一个整理完善的“一键 pytest 测试套件”。部分脚本会打印中间值，部分脚本可能打开 MuJoCo viewer。面试展示时建议优先使用 `推荐运行命令` 一节中的三条主线命令。
+* **Automated tests**（默认）：不依赖 GUI、viewer 或摄像头的脚本，用 `def test_*()` 包装并由 pytest 自动发现。
+* **Interactive / viewer validation**（标记为 `@pytest.mark.viewer`）：需要 MuJoCo viewer 显示和人工检查的脚本，默认跳过。
+
+运行全部非 viewer 测试：
+
+```bash
+pytest -q -m "not viewer and not interactive"
+```
+
+运行全部测试（viewer 测试会因 `pytest.skip()` 跳过）：
+
+```bash
+pytest -q
+```
+
+详细说明见 `docs/testing.md`。
+
+面试展示时建议优先使用 `推荐运行命令` 一节中的三条主线命令。
 
 ## 当前局限
 
