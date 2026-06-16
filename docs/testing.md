@@ -56,6 +56,7 @@ python tests/panda/test_pd_gravity_compensation.py
 - A working camera
 - OpenCV GUI window
 - MuJoCo viewer display
+  See docs/retargeting.md for coordinate-frame assumptions.
 
 ## Custom markers
 

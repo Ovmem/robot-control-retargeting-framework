@@ -24,6 +24,7 @@ class PandaTarget:
 
 
 class LowPassFilter:
+    """Exponential moving-average filter for smoothing."""
     def __init__(self, alpha: float = 0.55):
         self.alpha = alpha
         self.y = None
@@ -32,6 +33,7 @@ class LowPassFilter:
         self.y = None
 
     def update(self, x: np.ndarray) -> np.ndarray:
+        """Apply one step of exponential smoothing."""
         if self.y is None:
             self.y = x.copy()
         else:
@@ -148,8 +150,9 @@ class HandToPandaRetargeter:
         """
         用 image landmarks 做手部整体平移映射。
 
-        P_img[:, 0]：图像 x，向右增大
-        P_img[:, 1]：图像 y，向下增大
+        P_img[:, 0]：图像 x，向右增大 → 映射到 robot y
+        P_img[:, 1]：图像 y，向下增大 → 映射到 robot z（dy 取反）
+        详细坐标系约定见 docs/retargeting.md
         """
         wrist = P_img[0]
         middle_mcp = P_img[9]
