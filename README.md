@@ -22,7 +22,7 @@ robot_control_retargeting_framework/
 │   ├── jacobian_3d.py              # 简化 3D 机械臂数值雅可比
 │   ├── kinematics.py               # 2D / 3-DoF 平面机械臂 FK、IK、Jacobian
 │   ├── kinematics_3d.py            # 简化 3D 机械臂 FK
-│   └── pose_ik.py                  # 预留 Pose IK 接口，目前为空
+│   └── pose_ik.py                  # 轻量级末端位姿 IK（阻尼最小二乘）
 │
 ├── retargeting/
 │   └── hand_to_panda.py            # 手部 landmarks -> Panda 目标位姿 / 夹爪指令
