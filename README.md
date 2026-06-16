@@ -55,7 +55,7 @@ robot_control_retargeting_framework/
 │   ├── dynamics/                   # 控制实验 CSV、曲线和 metrics
 │   └── *.png                       # 早期 demo 结果图
 │
-├── tests/                          # 验证脚本集合，不保证一键 pytest 通过
+├── tests/                          # 已验证脚本（pytest 非交互式测试 + viewer 验证，见 docs/testing.md）
 ├── requirements.txt
 └── README.md
 ```
