@@ -1,10 +1,11 @@
 import pytest
 import mujoco
 import numpy as np
+
 from scipy.spatial.transform import Rotation
 
 
-def test_test_euler_6dof():
+def test_test_quaternion_6dof():
     
     model = mujoco.MjModel.from_xml_path(
         "models/arm6dof.xml"
@@ -27,17 +28,15 @@ def test_test_euler_6dof():
     
     R = data.site_xmat[ee_id].reshape(3,3)
     
-    print("Rotation Matrix =")
-    print(R)
+    quat = Rotation.from_matrix(R).as_quat()
+    
+    print("quaternion =")
+    print(quat)
     
     print()
     
-    euler = Rotation.from_matrix(R).as_euler(
-        "xyz",
-        degrees=True
-    )
-    
-    print("roll pitch yaw (deg) =")
-    print(euler)
+    print("norm =")
+    print(np.linalg.norm(quat))
+    assert abs(np.linalg.norm(quat) - 1.0) < 1e-10
 if __name__ == "__main__":
-    test_test_euler_6dof()
+    test_test_quaternion_6dof()

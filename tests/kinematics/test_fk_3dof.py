@@ -1,3 +1,4 @@
+import pytest
 import sys
 import os
 
@@ -13,12 +14,17 @@ import numpy as np
 from core.kinematics import fk_3dof
 
 
-q = np.array([0, 0, 0])
-
-print("q =")
-print(q)
-
-print()
-
-print("ee =")
-print(fk_3dof(q))
+def test_test_fk_3dof():
+    
+    
+    q = np.array([0, 0, 0])
+    
+    print("q =")
+    print(q)
+    
+    print()
+    
+    print("ee =")
+    print(fk_3dof(q))
+if __name__ == "__main__":
+    test_test_fk_3dof()

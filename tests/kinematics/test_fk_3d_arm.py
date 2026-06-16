@@ -1,3 +1,4 @@
+import pytest
 import sys
 import os
 
@@ -13,15 +14,20 @@ import numpy as np
 
 from core.kinematics_3d import fk_3d_arm
 
-q = np.array([
-    0.5,
-    0.3,
-    -0.2
-])
 
-p0,p1,p2,p3 = fk_3d_arm(q)
-
-print("base =",p0)
-print("joint1 =",p1)
-print("joint2 =",p2)
-print("ee =",p3)
+def test_test_fk_3d_arm():
+    
+    q = np.array([
+        0.5,
+        0.3,
+        -0.2
+    ])
+    
+    p0,p1,p2,p3 = fk_3d_arm(q)
+    
+    print("base =",p0)
+    print("joint1 =",p1)
+    print("joint2 =",p2)
+    print("ee =",p3)
+if __name__ == "__main__":
+    test_test_fk_3d_arm()
