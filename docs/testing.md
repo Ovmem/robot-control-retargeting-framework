@@ -14,13 +14,13 @@ Automated tests are plain pytest tests that:
 Run automated tests (skips viewer/interactive tests):
 
 `ash
-pytest -q -m "not viewer"
+pytest -q -m "not viewer and not interactive"
 `
 
 To also exclude MuJoCo model loading tests:
 
 `ash
-pytest -q -m "not viewer and not mujoco"
+pytest -q -m "not viewer and not interactive and not mujoco"
 `
 
 Run only MuJoCo-related tests:
@@ -37,7 +37,7 @@ Tests marked with \@pytest.mark.viewer\ require:
 - Manual visual inspection
 - Usually involve \mujoco.viewer.launch_passive()\
 
-These tests are **skipped by default** in \pytest\ or \pytest -m "not viewer"\.
+These tests are **skipped by default** in \pytest\ or \pytest -m "not viewer and not interactive"\.
 
 They can still be run manually as standalone scripts:
 
