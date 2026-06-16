@@ -9,6 +9,7 @@ Automated tests are plain pytest tests that:
 - Do not require a display, viewer GUI, or camera
 - Can run headless (no MuJoCo viewer)
 - Complete within seconds
+- Include a pose IK convergence test (tests/panda/test_pose_ik.py)
 - Have explicit assert statements
 
 Run automated tests (skips viewer/interactive tests):
