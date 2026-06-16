@@ -13,7 +13,12 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from core.dynamics_control import PandaTorqueController, TorqueLimit
+from core.dynamics_control import (
+    PandaTorqueController,
+    TorqueLimit,
+    has_affine_position_actuators,
+    has_position_actuators_and_neutralize,
+)
 
 
 def make_parser():
@@ -70,6 +75,16 @@ def run_trial(model_path, mode_name, gravity_comp, duration, use_ctrl):
     dt = model.opt.timestep
     steps = int(duration / dt)
 
+    has_position_actuator = not use_ctrl and has_affine_position_actuators(model, 7)
+    if has_position_actuator:
+        print(
+            f"[{mode_name}] Detected affine-bias position actuators in XML. "
+            "Neutralizing via ctrl = qpos (qfrc_applied mode)."
+        )
+    else:
+        ctrl_mode = "data.ctrl" if use_ctrl else "qfrc_applied"
+        print(f"[{mode_name}] Using {ctrl_mode} for torque application.")
+
     rows = []
 
     for k in range(steps):
@@ -83,6 +98,8 @@ def run_trial(model_path, mode_name, gravity_comp, duration, use_ctrl):
         )
 
         controller.apply_torque(tau, prefer_ctrl=use_ctrl)
+        if has_position_actuator:
+            has_position_actuators_and_neutralize(model, data, 7)
         mujoco.mj_step(model, data)
 
         q = data.qpos[:7].copy()

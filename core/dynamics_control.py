@@ -53,6 +53,64 @@ def get_body_jacobian(
     return np.vstack([Jp[:, :dof], Jr[:, :dof]])
 
 
+def has_affine_position_actuators(
+    model: mujoco.MjModel,
+    dof: int = 7,
+) -> bool:
+    """
+    Check if the first *dof* actuators are affine-bias position actuators.
+
+    In the standard Panda MJCF, arm joints use ``<general>`` actuators with
+    ``dyntype="none"`` and ``biastype="affine"``.  These behave as position
+    servos rather than pure torque sources.
+
+    Returns ``True`` when the first actuator exhibits this pattern, which is
+    sufficient for the homogeneous Panda arm actuator set.
+    """
+    if model.nu < 1:
+        return False
+    affine = int(mujoco.mjtBias.mjBIAS_AFFINE)
+    return bool(model.actuator_biastype[0] == affine)
+
+
+def neutralize_position_actuators(
+    model: mujoco.MjModel,
+    data: mujoco.MjData,
+    dof: int = 7,
+):
+    """
+    Set ``data.ctrl[:dof] = data.qpos[:dof]`` so that affine-bias position
+    actuators hold the current joint configuration instead of fighting
+    externally applied torques (``qfrc_applied``).
+
+    This is an *engineering compromise*: the standard Panda MJCF XML ships
+    with position-level actuators, so performing torque-level control via
+    ``qfrc_applied`` requires keeping the position servo at the current
+    pose.  The cleanest fix would be to author a torque-actuated variant of
+    the XML, but that is a separate task.
+
+    Call this once at the start of each control step, *before*
+    ``mujoco.mj_step`` and after writing ``qfrc_applied``.
+    """
+    data.ctrl[:dof] = data.qpos[:dof].copy()
+
+
+def has_position_actuators_and_neutralize(
+    model: mujoco.MjModel,
+    data: mujoco.MjData,
+    dof: int = 7,
+) -> bool:
+    """
+    Convenience: check for position actuators and neutralize them.
+
+    Returns ``True`` if neutralization was applied.
+    """
+    if has_affine_position_actuators(model, dof):
+        neutralize_position_actuators(model, data, dof)
+        return True
+    return False
+
+
 @dataclass
 class TorqueLimit:
     lower: np.ndarray

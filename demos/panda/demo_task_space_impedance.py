@@ -17,6 +17,8 @@ from core.dynamics_control import (
     PandaTorqueController,
     TorqueLimit,
     get_body_pose,
+    has_affine_position_actuators,
+    has_position_actuators_and_neutralize,
     rotation_error_rotvec,
 )
 
@@ -95,6 +97,16 @@ def main():
     dt = model.opt.timestep
     steps = int(args.duration / dt)
 
+    has_position_actuator = not args.use_ctrl and has_affine_position_actuators(model, 7)
+    if has_position_actuator:
+        print(
+            "[task_impedance] Detected affine-bias position actuators in XML. "
+            "Neutralizing via ctrl = qpos (qfrc_applied mode)."
+        )
+    else:
+        ctrl_mode = "data.ctrl" if args.use_ctrl else "qfrc_applied"
+        print(f"[task_impedance] Using {ctrl_mode} for torque application.")
+
     rows = []
 
     for k in range(steps):
@@ -129,6 +141,8 @@ def main():
         )
 
         controller.apply_torque(tau, prefer_ctrl=args.use_ctrl)
+        if has_position_actuator:
+            has_position_actuators_and_neutralize(model, data, 7)
         mujoco.mj_step(model, data)
 
         cur_pos, cur_rot = get_body_pose(model, data, args.body)
