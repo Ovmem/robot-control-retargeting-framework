@@ -1,70 +1,74 @@
-﻿# Testing Strategy
+# 测试策略
 
-The project uses pytest for test discovery and execution.
+项目使用 pytest 进行测试发现和执行。
 
-## Automated tests
+## 自动化测试
 
-Automated tests are plain pytest tests that:
+自动化测试是满足以下条件的 pytest 测试：
 
-- Do not require a display, viewer GUI, or camera
-- Can run headless (no MuJoCo viewer)
-- Complete within seconds
-- Include a pose IK convergence test (tests/panda/test_pose_ik.py)
-- Have explicit assert statements
+- 不需要显示器、viewer GUI 或摄像头
+- 可以无头运行（无 MuJoCo viewer）
+- 在数秒内完成
+- 包含 pose IK 收敛测试（tests/panda/test_pose_ik.py）
+- 有明确的 assert 语句
+- 包含 retargeting 映射测试（tests/panda/test_retargeting_mapping.py）
 
-Run automated tests (skips viewer/interactive tests):
+运行自动化测试（跳过 viewer/interactive 测试）：
 
-`ash
+\`\`\`bash
 pytest -q -m "not viewer and not interactive"
-`
+\`\`\`
 
-To also exclude MuJoCo model loading tests:
+也可排除 MuJoCo 模型加载测试：
 
-`ash
+\`\`\`bash
 pytest -q -m "not viewer and not interactive and not mujoco"
-`
+\`\`\`
 
-Run only MuJoCo-related tests:
+仅运行 MuJoCo 相关测试：
 
-`ash
+\`\`\`bash
 pytest -q -m mujoco
-`
+\`\`\`
 
-## Interactive / Viewer validation
+坐标帧假设和映射约束详见 docs/retargeting.md。
 
-Tests marked with \@pytest.mark.viewer\ require:
+## 交互式 / Viewer 验证
 
-- A display and MuJoCo GUI viewer
-- Manual visual inspection
-- Usually involve \mujoco.viewer.launch_passive()\
+标记为 @pytest.mark.viewer 的测试需要：
 
-These tests are **skipped by default** in \pytest\ or \pytest -m "not viewer and not interactive"\.
+- 显示器和 MuJoCo GUI viewer
+- 人工视觉检查
+- 通常涉及 mujoco.viewer.launch_passive()
 
-They can still be run manually as standalone scripts:
+这些测试在 pytest 或 pytest -m "not viewer and not interactive" 中默认跳过。
 
-`ash
+它们仍然可以手动作为独立脚本运行：
+
+\`\`\`bash
 python tests/panda/test_view_panda.py
 python tests/panda/test_gravity_compensation.py
 python tests/panda/test_pd_control.py
 python tests/panda/test_pd_gravity_compensation.py
-`
+\`\`\`
 
-## Hand retargeting demo
+## 手部 Retargeting Demo
 
-\demos/panda/demo_hand_retargeting_pd_gc.py\ is not a pytest test. It requires:
+demos/panda/demo_hand_retargeting_pd_gc.py 不是 pytest 测试。它需要：
 
-- A working camera
-- OpenCV GUI window
-- MuJoCo viewer display
-  See docs/retargeting.md for coordinate-frame assumptions.
+- 可用的摄像头
+- OpenCV GUI 窗口
+- MuJoCo viewer 显示
 
-## Custom markers
+坐标帧假设和映射约束详见 docs/retargeting.md。
 
-Registered in \pytest.ini\:
+## 自定义 Markers
 
-| Marker | Description |
+注册在 pytest.ini 中：
+
+| Marker | 说明 |
 |---|---|
-| \interactive\ | Requires viewer, GUI, camera, or manual inspection |
-| \iewer\ | Requires MuJoCo viewer and display |
-| \mujoco\ | Requires MuJoCo model loading |
-| \slow\ | Longer-running validation |
+| interactive | 需要 viewer、GUI、摄像头或人工检查 |
+| viewer | 需要 MuJoCo viewer 和显示器 |
+| mujoco | 需要加载　MuJoCo 模型 |
+| slow | 运行时间较长的验证 |
