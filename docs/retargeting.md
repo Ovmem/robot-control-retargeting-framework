@@ -118,6 +118,39 @@ Step 5: Send to controller
 
 ---
 
+---
+
+## 5.  Offline Mock Retargeting Demo
+
+An offline demo script is available at ``scripts/generate_retargeting_demo.py``.
+
+**What it does:**
+
+- Generates a synthetic hand-landmark trajectory (wrist moving in a
+  Lissajous-like pattern, pinch ratio cycling open-to-close).
+- Feeds the trajectory through the same ``HandToPandaRetargeter`` pipeline
+  used by the webcam demo.
+- Saves CSV results and a Matplotlib figure to ``results/retargeting/``.
+
+**What it validates:**
+
+- Mapping-pipeline logic (position scaling, axis assignment, clamping).
+- Gripper command mapping from pinch ratio.
+- Low-pass filter behaviour over a multi-second trajectory.
+
+**What it does NOT validate:**
+
+- MediaPipe tracking quality or hand-detection robustness.
+- Real-time latency.
+
+Run it with:
+
+```bash
+python scripts/generate_retargeting_demo.py
+```
+
+No webcam, display, or MuJoCo viewer is required.
+
 ## 4.  Current Limitations (Summary)
 
 - Not a full motion retargeting system (hand → end-effector only).
