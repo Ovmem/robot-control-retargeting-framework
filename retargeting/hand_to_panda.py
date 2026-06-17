@@ -56,6 +56,7 @@ class HandToPandaRetargeter:
         robot_origin: np.ndarray = np.array([0.45, 0.0, 0.45]),
         position_scale_xy: float = 1.4,
         depth_scale: float = 0.8,
+        enable_depth_mapping: bool = False,
         min_gripper_width: float = 0.0,
         max_gripper_width: float = 0.04,
         filter_alpha: float = 0.55,
@@ -73,6 +74,7 @@ class HandToPandaRetargeter:
             self.position_scale_xy = position_scale_xy
 
         self.depth_scale = depth_scale
+        self.enable_depth_mapping = enable_depth_mapping
 
         self.min_gripper_width = min_gripper_width
         self.max_gripper_width = max_gripper_width
@@ -169,18 +171,26 @@ class HandToPandaRetargeter:
         dx = delta[0]
         dy = delta[1]
 
+        if self.enable_depth_mapping:
+            depth_dx = self.depth_scale * delta_palm
+        else:
+            depth_dx = 0.0
+
         robot_delta = np.array(
             [
-                0.0,# self.depth_scale * delta_palm,        # 手靠近/远离摄像头 -> Panda x
-                self.position_scale_xy * dx,         # 手左右移动 -> Panda y
-                -0.8*self.position_scale_xy * dy,         # 手上下移动 -> Panda z
+                depth_dx,                              # hand near/far -> Panda x (optional)
+                self.position_scale_xy * dx,           # hand left/right -> Panda y
+                -0.8 * self.position_scale_xy * dy,   # hand up/down -> Panda z
             ],
             dtype=float,
         )
 
         pos = self.robot_origin + robot_delta
 
-        pos[0] = np.clip(pos[0], self.robot_origin[0] - 0.02, self.robot_origin[0] + 0.02)
+        if self.enable_depth_mapping:
+            pos[0] = np.clip(pos[0], self.robot_origin[0] - 0.10, self.robot_origin[0] + 0.10)
+        else:
+            pos[0] = np.clip(pos[0], self.robot_origin[0] - 0.02, self.robot_origin[0] + 0.02)
         pos[1] = np.clip(pos[1], self.robot_origin[1] - 0.25, self.robot_origin[1] + 0.25)
         pos[2] = np.clip(pos[2], self.robot_origin[2] - 0.12, self.robot_origin[2] + 0.14)
 

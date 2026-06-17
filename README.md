@@ -190,6 +190,8 @@ python -m demos.panda.demo_hand_retargeting_pd_gc
 
 该 demo 需要可用摄像头、OpenCV GUI 窗口和 MuJoCo viewer 支持。运行后会同时启动 MediaPipe 手部窗口和 MuJoCo 仿真窗口。
 
+摄像头 demo 支持手部位置到末端目标的映射和夹爪宽度输出；相对深度映射属于可选原型功能（默认关闭）。
+
 ## 结果解释
 
 仓库在 `results/dynamics/` 下保存了 dynamics 实验 CSV、曲线图和 metrics。这些文件主要用于展示实验流程：

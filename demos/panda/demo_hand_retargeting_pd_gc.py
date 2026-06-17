@@ -63,17 +63,19 @@ def main():
     retargeter = HandToPandaRetargeter(
         robot_origin=base_pos.copy(),
         position_scale_xy=2.2,
-        depth_scale=0,
+        depth_scale=0.8,
+        enable_depth_mapping=False,
         filter_alpha=0.18,
     )
 
     # Default target before hand is detected.
     target_pos = np.array([0.45, 0.0, 0.45])
+    target_gripper = 0.04  # default: fully open
     # target_rot = Rotation.from_euler("xyz", [180, 0, 90], degrees=True).as_matrix()
 
     print("Press ESC in the MediaPipe window or close MuJoCo viewer to exit.")
     print("Move your wrist to command end-effector position.")
-    print("Pinch thumb-index to command gripper width, currently printed only.")
+    print("Pinch thumb-index to command gripper width (set via data.ctrl[7]).")
 
     last_print = time.time()
 
@@ -96,11 +98,16 @@ def main():
                 if target.valid:
                     target_pos = target.pos
                     target_rot = target.rot
+                    target_gripper = target.gripper_width
 
             for _ in range(sim_substeps):
                     # 如果 XML 里是 position actuator，让它保持当前关节角，避免它把机械臂拉回 ctrl=0
                 if model.nu >= 7:
                     data.ctrl[:7] = data.qpos[:7]
+                # Gripper control from retargeter
+                if model.nu >= 8:
+                    g_ctrl = np.clip(target_gripper / 0.04 * 255.0, 0, 255)
+                    data.ctrl[7] = g_ctrl
 
                 tau = controller.task_space_pd(
                     target_pos=target_pos,

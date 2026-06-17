@@ -134,5 +134,50 @@ class TestGripperPinch:
             retargeter.reset_origin()
             assert 0.0 <= t.gripper_width <= 0.04, f"spread={s} -> {t.gripper_width}"
 
+
+class TestDepthMapping:
+    def test_depth_enabled_changes_x(self):
+        ret = HandToPandaRetargeter(
+            robot_origin=np.array([0.45, 0.0, 0.45]),
+            position_scale_xy=2.0, depth_scale=1.0,
+            enable_depth_mapping=True, filter_alpha=1.0)
+
+        P0 = _make_landmarks(palm_span=0.12)
+        P1 = _make_landmarks(palm_span=0.15)  # larger palm = closer
+
+        _ = ret.map_position_from_image(P0)   # baseline
+        pos = ret.map_position_from_image(P1)
+        # x should differ from origin because depth is enabled
+        assert abs(pos[0] - ret.robot_origin[0]) > 1e-4, f"x={pos[0]:.4f}"
+
+    def test_depth_disabled_keeps_x(self):
+        ret = HandToPandaRetargeter(
+            robot_origin=np.array([0.45, 0.0, 0.45]),
+            position_scale_xy=2.0, depth_scale=1.0,
+            enable_depth_mapping=False, filter_alpha=1.0)
+
+        P0 = _make_landmarks(palm_span=0.12)
+        P1 = _make_landmarks(palm_span=0.15)
+
+        _ = ret.map_position_from_image(P0)   # baseline
+        pos = ret.map_position_from_image(P1)
+        # x should stay at origin because depth is disabled
+        assert abs(pos[0] - ret.robot_origin[0]) < 1e-4, f"x={pos[0]:.4f}"
+
+    def test_depth_clamped_to_workspace(self):
+        ret = HandToPandaRetargeter(
+            robot_origin=np.array([0.45, 0.0, 0.45]),
+            position_scale_xy=2.0, depth_scale=10.0,
+            enable_depth_mapping=True, filter_alpha=1.0)
+
+        P0 = _make_landmarks(palm_span=0.12)
+        P_big = _make_landmarks(palm_span=0.50)  # extreme size change
+
+        _ = ret.map_position_from_image(P0)
+        pos = ret.map_position_from_image(P_big)
+        # must stay within workspace bounds
+        assert ret.robot_origin[0] - 0.11 <= pos[0] <= ret.robot_origin[0] + 0.11
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
