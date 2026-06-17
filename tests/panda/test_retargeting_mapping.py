@@ -108,5 +108,31 @@ class TestRetargeterUpdate:
         assert not np.allclose(target1.pos, target2.pos, atol=1e-4)
 
 
+
+class TestGripperPinch:
+    @pytest.fixture
+    def retargeter(self):
+        return HandToPandaRetargeter(robot_origin=np.array([0.45,0.0,0.45]),position_scale_xy=2.2,depth_scale=0.0,filter_alpha=0.18)
+
+    def _lm(self, wx, spread):
+        P = _make_landmarks(wrist_xy=(wx,0.5), palm_span=0.12)
+        P[4,0] = wx + 0.06 + spread/2.0
+        P[8,0] = wx + 0.06 - spread/2.0
+        return P
+
+    def test_open_vs_closed(self, retargeter):
+        op = retargeter.update(type("Mo",(),{"landmarks_image":self._lm(0.5,0.08),"landmarks_world":self._lm(0.5,0.08)})())
+        retargeter.reset_origin()
+        cl = retargeter.update(type("Mo",(),{"landmarks_image":self._lm(0.5,0.005),"landmarks_world":self._lm(0.5,0.005)})())
+        assert op.gripper_width > cl.gripper_width + 1e-4
+        assert op.gripper_width - cl.gripper_width > 1e-3
+
+    def test_gripper_range(self, retargeter):
+        for s in [0.0,0.02,0.05,0.10,0.15]:
+            P = self._lm(0.5,s)
+            t = retargeter.update(type("Mo",(),{"landmarks_image":P,"landmarks_world":P})())
+            retargeter.reset_origin()
+            assert 0.0 <= t.gripper_width <= 0.04, f"spread={s} -> {t.gripper_width}"
+
 if __name__ == "__main__":
     pytest.main([__file__])

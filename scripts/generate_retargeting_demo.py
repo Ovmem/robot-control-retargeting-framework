@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from retargeting.hand_to_panda import HandToPandaRetargeter
+from core.operation_logger import OperationLogger, OperationSample
 
 
 # ---------------------------------------------------------------------------
@@ -73,8 +74,9 @@ def generate_mock_trajectory(duration: float = 6.0,
         # modulate pinch over time
         angle = 2 * np.pi * pinch_cycle * t
         pinch_open = 0.5 * (1.0 + np.sin(angle))
-        P[4, 0] = P[0, 0] + 0.06 + 0.03 * pinch_open
-        P[8, 0] = P[0, 0] + 0.06 + 0.03 * pinch_open
+        spread = 0.04 * pinch_open + 0.005
+        P[4, 0] = P[0, 0] + 0.06 + spread
+        P[8, 0] = P[0, 0] + 0.06 - spread
         out.append(MockHandObservation(landmarks_image=P.copy(),
                                         landmarks_world=P.copy()))
     return out
@@ -98,6 +100,8 @@ def main():
 
     frames = generate_mock_trajectory()
     rows = []
+    logger = OperationLogger()
+    prev_target_pos = None
 
     for step, obs in enumerate(frames):
         target = retargeter.update(obs)
@@ -111,6 +115,23 @@ def main():
             "pinch_ratio": float(target.pinch_ratio),
             "valid": int(target.valid),
         })
+
+        # --- operation logging ---
+        action_delta = None
+        if prev_target_pos is not None:
+            action_delta = target.pos - prev_target_pos
+        prev_target_pos = target.pos.copy()
+
+        sample = OperationSample(
+            step=step,
+            time=step / 30.0,
+            target_pos=target.pos.copy(),
+            action_pos_delta=action_delta,
+            gripper_width=float(target.gripper_width),
+            valid=bool(target.valid),
+            source="mock_hand",
+        )
+        logger.append(sample)
 
     # ------------------------------------------------------------------
     # Save CSV
@@ -167,6 +188,13 @@ def main():
     print(f"Saved: {png_path}")
     plt.close(fig)
 
+    print()
+    csv_path2 = out_dir / "mock_operation_trajectory.csv"
+    npz_path = out_dir / "mock_operation_trajectory.npz"
+    logger.save_csv(csv_path2)
+    logger.save_npz(npz_path)
+    print(f"Saved: {csv_path2}")
+    print(f"Saved: {npz_path}")
     print()
     print("Next: view the curve or include it in README / docs.")
     print("This offline demo does NOT require a webcam or MuJoCo viewer.")
