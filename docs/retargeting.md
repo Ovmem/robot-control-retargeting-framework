@@ -116,6 +116,36 @@ y_axis = normalize(cross(z_axis, x_axis))
 
 真机部署前应使用深度传感器或标定的多目相机替代此简化方法。
 
+
+
+## 7. Webcam Demo Recording Tips
+
+### Recommended command
+
+```bash
+python -m demos.panda.demo_hand_retargeting_pd_gc --duration 10 --log-csv results/retargeting/webcam_retargeting_log.csv
+```
+
+### Recording workflow
+
+1. Open the camera feed window and MuJoCo viewer side by side (or use screen recording software).
+2. The demo stops automatically after `--duration` seconds, or press ESC in the MediaPipe window.
+3. Adjust parameters with `--pos-scale` and `--filter-alpha` if the robot is too jittery or too sluggish.
+4. When `--log-csv` is set, a timestamped CSV with target pose and gripper data is saved.
+
+### Parameter tuning suggestions
+
+- If the arm **jitters** → reduce `--pos-scale` or lower `--filter-alpha` (more smoothing).
+- If the arm **lags** → increase `--filter-alpha` (less smoothing, faster response).
+- Depth mapping is experimental; leave it OFF (`--enable-depth-mapping` is not set by default).
+- Debug overlay shows a separate info window; disable with `--no-debug` if it clutters the recording.
+
+### Notes
+
+- Requires a working webcam, OpenCV GUI, and MuJoCo viewer.
+- This is a simulation-interaction demo, not a real-robot deployment.
+
+
 ## 4. 当前限制（总结）
 
 - 非完整动作重定向系统（手 → 末端执行器）。

@@ -7,10 +7,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import time
+import argparse
+import csv
 
 import mujoco
 import mujoco.viewer
 import numpy as np
+import cv2
 from scipy.spatial.transform import Rotation
 
 from core.dynamics_control import (
@@ -22,7 +25,28 @@ from retargeting.hand_to_panda import HandToPandaRetargeter
 from vision.hand_tracker import MediaPipeHandTracker
 
 
+
+def make_parser():
+    parser = argparse.ArgumentParser(
+        description="Webcam hand retargeting demo")
+    parser.add_argument("--pos-scale", type=float, default=2.2,
+                        help="Hand motion to robot position scale")
+    parser.add_argument("--filter-alpha", type=float, default=0.18,
+                        help="Low-pass filter strength (0=no smoothing, 1=max)")
+    parser.add_argument("--enable-depth-mapping", action="store_true",
+                        help="Enable relative depth -> x mapping (experimental)")
+    parser.add_argument("--no-debug", action="store_true",
+                        help="Disable debug overlay on separate info window")
+    parser.add_argument("--log-csv", type=str, default=None,
+                        help="Save run log to CSV file path")
+    parser.add_argument("--duration", type=float, default=0,
+                        help="Auto-stop after N seconds (0 = manual stop)")
+    return parser
+
+
 def main():
+    args = make_parser().parse_args()
+
     model = mujoco.MjModel.from_xml_path("models/panda/panda.xml")
     data = mujoco.MjData(model)
 
@@ -60,12 +84,25 @@ def main():
         mirror=True,
     )
 
+    # --- startup info ---
+    print("=== Hand Retargeting Demo ===")
+    print(f"  pos_scale:       {args.pos_scale}")
+    print(f"  filter_alpha:    {args.filter_alpha}")
+    print(f"  depth_mapping:   {'ON' if args.enable_depth_mapping else 'OFF'}")
+    print(f"  log_csv:         {args.log_csv}")
+    print(f"  duration:        {args.duration}s (0 = manual stop)")
+    print(f"  workspace clamp: y +/-0.25, z -0.12/+0.14, x +/-0.02")
+    print(f"  gripper range:   [0.00, 0.04] m")
+    if args.log_csv:
+        print(f"  Logging to:      {args.log_csv}")
+    print("==============================")
+
     retargeter = HandToPandaRetargeter(
         robot_origin=base_pos.copy(),
-        position_scale_xy=2.2,
+        position_scale_xy=args.pos_scale,
         depth_scale=0.8,
-        enable_depth_mapping=False,
-        filter_alpha=0.18,
+        enable_depth_mapping=args.enable_depth_mapping,
+        filter_alpha=args.filter_alpha,
     )
 
     # Default target before hand is detected.
@@ -80,6 +117,15 @@ def main():
     last_print = time.time()
 
     sim_substeps = 60  # 可以试 10、15、20
+
+    demo_start = time.time()
+    csv_writer = None
+    if args.log_csv:
+        csv_path = Path(args.log_csv)
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        fh_csv = open(csv_path, "w", newline="", encoding="utf-8")
+        csv_writer = csv.DictWriter(fh_csv, fieldnames=["t", "valid", "target_x", "target_y", "target_z", "gripper_width", "pinch_ratio"])
+        csv_writer.writeheader()
 
     with mujoco.viewer.launch_passive(model, data) as viewer:
         while viewer.is_running():
@@ -99,6 +145,41 @@ def main():
                     target_pos = target.pos
                     target_rot = target.rot
                     target_gripper = target.gripper_width
+
+            # --- duration auto-stop ---
+            if args.duration > 0 and (time.time() - demo_start) > args.duration:
+                print(f"Duration limit reached ({args.duration}s), exiting.")
+                break
+
+            # --- CSV logging ---
+            if csv_writer is not None:
+                csv_writer.writerow({
+                    "t": f"{time.time() - demo_start:.3f}",
+                    "valid": int(target.valid) if "target" in dir() else 0,
+                    "target_x": f"{target_pos[0]:.4f}",
+                    "target_y": f"{target_pos[1]:.4f}",
+                    "target_z": f"{target_pos[2]:.4f}",
+                    "gripper_width": f"{target_gripper:.4f}",
+                    "pinch_ratio": f"{target.pinch_ratio:.3f}" if hasattr(target, "pinch_ratio") else "",
+                })
+
+            # --- debug overlay ---
+            if not args.no_debug and obs is not None:
+                frame = obs.frame_bgr.copy()
+                y = 30
+                lines = [
+                    f"Valid: {target.valid if 'target' in dir() else False}",
+                    f"Target: ({target_pos[0]:.3f}, {target_pos[1]:.3f}, {target_pos[2]:.3f})",
+                    f"Gripper: {target_gripper:.4f}",
+                    f"Pinch ratio: {target.pinch_ratio:.3f}" if hasattr(target, "pinch_ratio") else "",
+                    f"Depth: {'ON' if args.enable_depth_mapping else 'OFF'}",
+                    "Press ESC in MediaPipe window to quit",
+                ]
+                for text in lines:
+                    cv2.putText(frame, text, (10, y),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2)
+                    y += 28
+                cv2.imshow("Retargeting Debug", frame)
 
             for _ in range(sim_substeps):
                     # 如果 XML 里是 position actuator，让它保持当前关节角，避免它把机械臂拉回 ctrl=0
@@ -134,6 +215,10 @@ def main():
             )
 
             viewer.sync()
+
+    if csv_writer is not None:
+        fh_csv.close()
+        print(f"Saved log: {args.log_csv}")
 
     tracker.close()
 

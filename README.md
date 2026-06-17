@@ -186,6 +186,19 @@ results/dynamics/metrics.csv
 
 ```bash
 python -m demos.panda.demo_hand_retargeting_pd_gc
+
+推荐录制命令（10 秒自动停止，保存 CSV 日志）：
+
+```bash
+python -m demos.panda.demo_hand_retargeting_pd_gc \
+    --duration 10 --log-csv results/retargeting/webcam_retargeting_log.csv
+```
+
+更多参数见 `--help`：
+
+```bash
+python -m demos.panda.demo_hand_retargeting_pd_gc --help
+```
 ```
 
 该 demo 需要可用摄像头、OpenCV GUI 窗口和 MuJoCo viewer 支持。运行后会同时启动 MediaPipe 手部窗口和 MuJoCo 仿真窗口。
