@@ -1,8 +1,8 @@
 metric,value
-joint_pd_only_mean_error,0.25355043569271574
-joint_pd_gc_mean_error,0.23825408544062884
-joint_pd_only_final_error,0.23009878728839178
-joint_pd_gc_final_error,0.15518689049165826
-task_space_mean_pos_error,0.04680344169444938
-task_space_final_pos_error,0.048434395037443796
-task_space_mean_rot_error,0.02058341317727384
+joint_pd_only_mean_error,0.31598256821375753
+joint_pd_gc_mean_error,0.3213235753217871
+joint_pd_only_final_error,0.28713947613591806
+joint_pd_gc_final_error,0.2956851613685537
+task_space_mean_pos_error,0.02874560584489321
+task_space_final_pos_error,0.053047247520172494
+task_space_mean_rot_error,0.0021513751062825757

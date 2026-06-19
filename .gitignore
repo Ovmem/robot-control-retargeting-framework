@@ -1,16 +1,10 @@
-__pycache__/
-
+﻿__pycache__/
 *.pyc
-
 .env
-
 .vscode/
-
 .idea/
-
 *.log
-
 MUJOCO_LOG.TXT
 
-# Ignore temporary figures
+# Temporary files
 temp/
