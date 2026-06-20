@@ -1,8 +1,0 @@
-metric,value
-joint_pd_only_mean_error,0.31598256821375753
-joint_pd_gc_mean_error,0.3213235753217871
-joint_pd_only_final_error,0.28713947613591806
-joint_pd_gc_final_error,0.2956851613685537
-task_space_mean_pos_error,0.02874560584489321
-task_space_final_pos_error,0.053047247520172494
-task_space_mean_rot_error,0.0021513751062825757

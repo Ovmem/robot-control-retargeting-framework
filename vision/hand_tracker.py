@@ -1,4 +1,4 @@
-# vision/hand_tracker.py
+﻿# vision/hand_tracker.py
 
 from dataclasses import dataclass
 from typing import Optional
@@ -21,9 +21,8 @@ class MediaPipeHandTracker:
     """
     MediaPipe Hands wrapper.
 
-    Output:
-    - landmarks_image: normalized image coordinates.
-    - landmarks_world: 3D metric coordinates if MediaPipe provides them.
+    Returns detection results without displaying windows.
+    The caller (demo script) is responsible for showing the camera feed.
     """
 
     def __init__(
@@ -32,15 +31,18 @@ class MediaPipeHandTracker:
         max_num_hands: int = 1,
         min_detection_confidence: float = 0.6,
         min_tracking_confidence: float = 0.6,
-        draw: bool = True,
+        draw: bool = False,
         mirror: bool = True,
     ):
-        self.cap = cv2.VideoCapture(camera_id)
-        if not self.cap.isOpened():
-            raise RuntimeError(f"Cannot open camera {camera_id}")
-
         self.draw = draw
         self.mirror = mirror
+
+        self.cap = cv2.VideoCapture(camera_id)
+        if not self.cap.isOpened():
+            raise RuntimeError(
+                f"Cannot open camera {camera_id}. "
+                "Please check --camera-id."
+            )
 
         self.mp_hands = mp.solutions.hands
         self.mp_draw = mp.solutions.drawing_utils
@@ -72,8 +74,6 @@ class MediaPipeHandTracker:
         result = self.hands.process(rgb)
 
         if not result.multi_hand_landmarks:
-            cv2.imshow("MediaPipe Hand", frame)
-            cv2.waitKey(1)
             return None
 
         hand_landmarks = result.multi_hand_landmarks[0]
@@ -105,8 +105,6 @@ class MediaPipeHandTracker:
                 (0, 255, 0),
                 2,
             )
-            cv2.imshow("MediaPipe Hand", frame)
-            cv2.waitKey(1)
 
         return HandObservation(
             frame_bgr=frame,
@@ -118,4 +116,3 @@ class MediaPipeHandTracker:
 
     def close(self):
         self.cap.release()
-        cv2.destroyAllWindows()
