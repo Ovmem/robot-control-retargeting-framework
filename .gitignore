@@ -8,3 +8,11 @@ MUJOCO_LOG.TXT
 
 # Temporary files
 temp/
+
+# Raw generated data (not committed)
+results/panda_control/raw/*.csv
+results/retargeting/ablation/raw/*.csv
+results/retargeting/camera/raw/*.csv
+results/retargeting/*.csv
+results/retargeting/*.npz
+results/dynamics/*.csv
