@@ -186,28 +186,29 @@ class RetargetingPipeline:
 
         # --- Position mapping ---
         if P_img is not None and P_img.shape == (21, 3):
+            # Always compute unclipped position first
+            wrist = P_img[0]
+            middle_mcp = P_img[9]
+            palm_size = np.linalg.norm(middle_mcp[:2] - wrist[:2])
+            if self.retargeter.base_wrist_img is None:
+                self.retargeter.base_wrist_img = wrist.copy()
+                self.retargeter.base_palm_size = palm_size
+            delta = wrist - self.retargeter.base_wrist_img
+            raw_unclipped = self.robot_origin + np.array([
+                0.0,
+                self.position_scale_xy * delta[0],
+                -0.8 * self.position_scale_xy * delta[1],
+            ], dtype=float)
+
             if self.enable_workspace_clamp:
-                raw_pos = self.retargeter.map_position_from_image(P_img)
+                pos = raw_unclipped.copy()
+                pos[1] = np.clip(pos[1], self.robot_origin[1] - 0.25, self.robot_origin[1] + 0.25)
+                pos[2] = np.clip(pos[2], self.robot_origin[2] - 0.12, self.robot_origin[2] + 0.14)
+                pos[0] = np.clip(pos[0], self.robot_origin[0] - 0.02, self.robot_origin[0] + 0.02)
+                was_clipped = not np.allclose(raw_unclipped, pos)
             else:
-                # No-clamp version: call the retargeter but skip clipping
-                wrist = P_img[0]
-                middle_mcp = P_img[9]
-                palm_size = np.linalg.norm(middle_mcp[:2] - wrist[:2])
-
-                if self.retargeter.base_wrist_img is None:
-                    self.retargeter.base_wrist_img = wrist.copy()
-                    self.retargeter.base_palm_size = palm_size
-
-                delta = wrist - self.retargeter.base_wrist_img
-                robot_delta = np.array([
-                    0.0,
-                    self.position_scale_xy * delta[0],
-                    -0.8 * self.position_scale_xy * delta[1],
-                ], dtype=float)
-                raw_pos = self.robot_origin + robot_delta
-
-            pos = raw_pos.copy()
-            was_clipped = not np.allclose(raw_pos, pos)
+                pos = raw_unclipped.copy()
+                was_clipped = False
         else:
             pos = self.robot_origin.copy()
             was_clipped = False
@@ -549,6 +550,7 @@ def compute_derived_pos_metrics(positions: np.ndarray,
 def main():
     parser = argparse.ArgumentParser(
         description="Run hand retargeting ablation study")
+    parser.add_argument("--stress", action="store_true", help="Stress mock trajectory")
     parser.add_argument("--input", type=str, default=None,
                         help="Path to recorded hand sequence CSV. "
                              "If omitted, uses mock trajectory.")
@@ -579,9 +581,15 @@ def main():
             print("Falling back to mock trajectory.")
             hand_frames = generate_mock_trajectory(duration=6.0)
             fps_est = 30.0
+            fps_est = 30.0
     else:
         print("No --input provided; using mock hand trajectory.")
         hand_frames = generate_mock_trajectory(duration=6.0)
+        fps_est = 30.0
+
+    if args.stress:
+        print("Using STRESS mock trajectory (large amplitude, triggers workspace clamp)")
+        hand_frames = generate_mock_trajectory(duration=6.0, freq_xy=0.35, amplitude_x=0.35, amplitude_y=0.25)
         fps_est = 30.0
 
     print(f"  {len(hand_frames)} frames loaded, ~{fps_est:.1f} fps")
@@ -722,7 +730,7 @@ def main():
             "orientation_jump_max": float(np.nanmax(target_orientation_jumps)),
             "gripper_jitter": float(np.nanstd(gripper_widths)),
             "dropout_count": dropout_count,
-            "diverged": float(np.nanmean(torque_norms) if not np.all(np.isnan(torque_norms)) else 0.0),
+            "diverged": float(1.0 if (np.any(np.isnan(torque_norms)) or np.any(np.isinf(torque_norms)) or np.any(np.isnan(ee_position_errors)) or np.nanmax(ee_position_errors) > 0.5 or np.nanmax(torque_norms) > 200.0) else 0.0),
         }
 
         all_metrics[mode_name] = metrics

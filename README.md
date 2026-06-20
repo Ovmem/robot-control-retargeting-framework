@@ -53,15 +53,15 @@
 
 ### 当前结果（mock 手部轨迹，6s @ 30fps，MuJoCo 响应仿真）
 
-| 模式 | Mean EE err [m] | Max EE err [m] | Target jerk RMS [m/s^3] | RMS torque [Nm] | Workspace clip ratio |
-|------|:---:|:---:|:---:|:---:|:---:|
-| Full pipeline | 0.102 | 0.188 | 130.4 | 66.1 | 0.00 |
-| No smoothing | 0.102 | 0.188 | 135.0 | 66.1 | 0.00 |
-| No workspace clamp | 0.113 | 0.232 | 107.8 | 72.0 | 0.00 |
-| No rate limit | 0.117 | 0.206 | 106.4 | 75.8 | 0.00 |
-| No dropout hold | 0.102 | 0.188 | 2395.3 | 66.3 | 0.00 |
-| No orientation | 0.091 | 0.192 | 130.4 | 65.9 | 0.00 |
-| No pinch gripper | 0.102 | 0.188 | 130.4 | 66.1 | 0.00 |
+| 模式 | Mean EE err [m] | Max EE err [m] | Target jerk RMS [m/s^3] | RMS torque [Nm] | Workspace clip ratio | Diverged |
+|------|:---:|:---:|:---:|:---:|:---:|:---:|
+| Full pipeline | 0.102 | 0.188 | 130.4 | 66.1 | 0.73 | 0 |
+| No smoothing | 0.102 | 0.188 | 135.0 | 66.1 | 0.73 | 0 |
+| No workspace clamp | 0.113 | 0.232 | 107.8 | 72.0 | 0.00 | 0 |
+| No rate limit | 0.117 | 0.206 | 106.4 | 75.8 | 0.73 | 0 |
+| No dropout hold | 0.102 | 0.188 | 2395.3 | 66.3 | 0.73 | **1** |
+| No orientation | 0.091 | 0.192 | 130.4 | 65.9 | 0.73 | 0 |
+| No pinch gripper | 0.102 | 0.188 | 130.4 | 66.1 | 0.73 | 0 |
 
 > 注意：
 > - 以上结果基于 MuJoCo 仿真和 mock 手部轨迹，不构成真机实验结论。
@@ -72,6 +72,8 @@
 
 ### 初步解读
 
+- **Diverged 指标**：0 表示正常，1 表示发散（判定条件：出现 NaN/Inf、EE 位置误差超过 0.5m、或力矩超过 200 Nm）。当前 mock 轨迹下仅 
+o_dropout_hold 因丢帧跳变导致发散标记。
 - **Filter（no_smoothing）**：开关对稳态误差影响不大，但影响目标平滑性（jerk 略增）。
 - **Workspace clamp（no_workspace_clamp）**：关闭后目标可超出仿真安全范围，末端误差和力矩均上升。
 - **Rate limit（no_rate_limit）**：关闭速度限制后，轨迹瞬时速度和力矩峰值升高，torque smoothness 变差。
@@ -96,12 +98,12 @@
 
 ### 当前结果（MuJoCo 仿真，5 秒/组）
 
-| 模式 | Mean joint err [rad] | Final joint err [rad] | RMS torque [Nm] | Max torque [Nm] | Torque smoothness |
-|------|:---:|:---:|:---:|:---:|:---:|
-| PD only | 0.207 | 0.308 | 16.6 | 22.0 | 0.031 |
-| PD + GC | 0.204 | 0.304 | 26.7 | 29.5 | 0.028 |
-| PD + GC (low gain) | 0.214 | 0.335 | 23.6 | 24.5 | 0.014 |
-| PD + GC (clipped) | 0.204 | 0.304 | 26.7 | 29.5 | 0.028 |
+| 模式 | Mean joint err [rad] | Final joint err [rad] | RMS torque [Nm] | Max torque [Nm] | Torque smoothness | Diverged |
+|------|:---:|:---:|:---:|:---:|:---:|:---:|
+| PD only | 0.232 | 0.282 | 16.8 | 22.0 | 0.021 | 0 |
+| PD + GC | 0.219 | 0.202 | 25.2 | 29.5 | 0.019 | 0 |
+| PD + GC (low gain) | 0.254 | 0.269 | 23.1 | 24.5 | 0.009 | 0 |
+| PD + GC (clipped) | 0.229 | 0.242 | 17.7 | 20.0 | 0.012 | 0 |
 
 > **Task-space PD** 和 **Computed torque** 模式已在脚本中实现，不在此表中列出（它们分别跟踪末端位姿和使用逆动力学前馈，不宜与 joint-space 指标直接混比）。可运行 `python scripts/run_panda_control_ablation.py` 查看完整结果。
 

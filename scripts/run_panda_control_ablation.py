@@ -33,8 +33,8 @@ DEFAULT_TORQUE_LIMIT = TorqueLimit(
 )
 
 STRICT_TORQUE_LIMIT = TorqueLimit(
-    lower=-np.array([40, 40, 40, 40, 8, 8, 8], dtype=float),
-    upper=np.array([40, 40, 40, 40, 8, 8, 8], dtype=float),
+    lower=-np.array([10, 10, 10, 10, 3, 3, 3], dtype=float),
+    upper=np.array([10, 10, 10, 10, 3, 3, 3], dtype=float),
 )
 
 DEFAULT_KP = np.array([80, 80, 70, 60, 30, 25, 20], dtype=float)
@@ -203,7 +203,7 @@ def compute_metrics(rows: List[Dict]) -> Dict[str, float]:
         "max_torque": float(np.max(tau_norms)),
         "torque_smoothness": float(np.mean(tau_smooth_steps[tau_smooth_steps > 0])),
         "overshoot": float(np.max(err_norms) - err_norms[-1]),
-        "diverged": float(err_norms[-1] > err_norms[min(len(err_norms)//2, 100)]),
+        "diverged": float(1.0 if (np.any(np.isnan(err_norms)) or np.any(np.isinf(err_norms)) or np.any(np.isnan(tau_norms)) or np.max(err_norms) > 1.0 or np.max(tau_norms) > 100.0) else 0.0),
     }
     return metrics
 
