@@ -291,7 +291,7 @@ def main():
     parser.add_argument("--duration", type=float, default=5.0,
                         help="Simulation duration per trial (seconds)")
     parser.add_argument("--out-dir", type=str,
-                        default="results/panda_control")
+                        default="results/preliminary_control")
     args = parser.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -299,7 +299,7 @@ def main():
     metrics_dir = out_dir / "metrics"
 
     print("=" * 60)
-    print("Panda Control Ablation Study")
+    print("Preliminary Control Tuning")
     print(f"  model:    {args.model}")
     print(f"  duration: {args.duration} s per trial")
     print(f"  modes:    {[d['mode'] for d in DEFINITIONS]}")
@@ -335,7 +335,7 @@ def main():
     write_metrics_csv(all_metrics, metrics_path)
     print(f"\nAggregate metrics saved: {metrics_path}")
 
-    print("\nDone. Next: python scripts/plot_panda_control_ablation.py")
+    print("\nDone. Next: python scripts/plot_preliminary_control_tuning.py")
 
 
 if __name__ == "__main__":

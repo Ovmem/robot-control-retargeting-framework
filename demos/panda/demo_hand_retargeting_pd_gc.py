@@ -107,7 +107,7 @@ def main():
             camera_id=args.camera_id, draw=False, mirror=True,
         )
     except RuntimeError as e:
-        print(f"Camera is not available. Please check --camera-id.\nError: {e}")
+        print(f"Camera error: {e}")
         return
 
     # --- CSV ---
