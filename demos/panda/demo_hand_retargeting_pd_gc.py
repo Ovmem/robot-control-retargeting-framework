@@ -223,7 +223,7 @@ def main():
                 if cv2.waitKey(1) & 0xFF == 27:
                     break
 
-            print(f"frame={frame_id} err={pos_err:.3f}m tau={tau_norm:.1f}Nm", flush=True)
+            print(f"frame={frame_id} det={int(detected)} wrist=({wrist_pos[0]:.2f},{wrist_pos[1]:.2f}) tgt=({target_pos[0]:.3f},{target_pos[1]:.3f}) err={pos_err:.4f}m tau={tau_norm:.1f}Nm", flush=True)
 
     fh_csv.close()
     tracker.close()
