@@ -171,12 +171,16 @@ def main():
                 gravity_comp=True,
             )
 
+            use_ctrl = not has_affine_position_actuators(model, 7)
             for _ in range(sim_substeps):
-                if model.nu >= 7:
-                    data.ctrl[:7] = data.qpos[:7]
                 if model.nu >= 8:
                     data.ctrl[7] = np.clip(target_gripper / 0.04 * 255.0, 0, 255)
-                controller.apply_torque(tau, prefer_ctrl=False)
+                if use_ctrl:
+                    controller.apply_torque(tau, prefer_ctrl=True)
+                else:
+                    if model.nu >= 7:
+                        data.ctrl[:7] = data.qpos[:7]
+                    controller.apply_torque(tau, prefer_ctrl=False)
                 mujoco.mj_step(model, data)
 
             actual_pos, actual_rot = get_body_pose(model, data, "hand")
