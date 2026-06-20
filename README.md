@@ -200,7 +200,17 @@ robot_control_retargeting_framework/
 │
 ├── demos/
 │   ├── panda/                     # [主线] Panda 七自由度机械臂控制 demo
-│   └── fundamentals/              # [基础学习] 简化机械臂 FK/IK/Jacobian/Null Space demo
+│   ├── ik/                          # 简化机械臂 IK demo（2D, 3-DoF, 3D）
+│   ├── jacobian/                     # Jacobian 速度映射 demo
+│   ├── nullspace/                    # 简化 Null Space 控制 demo
+│   ├── orientation/                  # 姿态误差与四元数 demo
+│   ├── pose_ik/                      # 6D 位姿 IK demo
+│   ├── trajectory/                   # 轨迹跟踪 demo
+│   ├── control/                      # 简化控制 demo
+│   ├── retargeting/                  # 早期 retargeting 探索 demo
+│   ├── visualization/                # 模型可视化辅助脚本
+│   ├── kinematics/                   # 运动学相关 demo
+│   └── redundancy/                   # 冗余度分析 demo
 │
 ├── scripts/
 │   ├── record_hand_sequence.py             # 录制手部关键点序列
@@ -230,6 +240,8 @@ robot_control_retargeting_framework/
 │   └── data_logging.md            # 操作数据记录接口说明
 └── README.md
 ```
+
+> 注：`results/*/raw/` 目录下的 CSV 文件通过运行对应脚本自动生成。
 
 ---
 
