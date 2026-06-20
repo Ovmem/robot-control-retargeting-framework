@@ -55,6 +55,7 @@ def make_parser():
     p.add_argument("--pos-scale", type=float, default=2.2)
     p.add_argument("--filter-alpha", type=float, default=0.18)
     p.add_argument("--output-dir", type=str, default="results/hand_retargeting/runs")
+    p.add_argument("--model", type=str, default="models/panda/panda.xml", help="Panda MJCF model path")
     p.add_argument("--no-camera-window", action="store_true", help="Disable camera window (run headless)")
     p.add_argument("--kp-pos", type=float, default=1400.0, help="Task-space position proportional gain")
     p.add_argument("--kd-pos", type=float, default=100.0, help="Task-space position derivative gain")
@@ -76,7 +77,7 @@ def main():
     csv_path = raw_dir / "hand_retargeting_run.csv"
 
     # --- MuJoCo setup ---
-    model = mujoco.MjModel.from_xml_path("models/panda/panda.xml")
+    model = mujoco.MjModel.from_xml_path(args.model)
     data = mujoco.MjData(model)
 
     q_home = np.array([0.0, -0.7, 0.0, -2.2, 0.0, 1.6, 0.8])
