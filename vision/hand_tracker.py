@@ -11,19 +11,15 @@ import numpy as np
 @dataclass
 class HandObservation:
     frame_bgr: np.ndarray
-    landmarks_image: np.ndarray      # shape: (21, 3), normalized image coordinates
-    landmarks_world: Optional[np.ndarray]  # shape: (21, 3), metric world coordinates if available
-    handedness: str
-    score: float
+    landmarks_image: Optional[np.ndarray] = None   # (21, 3) when hand detected, else None
+    landmarks_world: Optional[np.ndarray] = None   # (21, 3) when world landmarks available
+    handedness: str = ""
+    score: float = 0.0
+    detected: bool = False
 
 
 class MediaPipeHandTracker:
-    """
-    MediaPipe Hands wrapper.
-
-    Returns detection results without displaying windows.
-    The caller (demo script) is responsible for showing the camera feed.
-    """
+    """MediaPipe Hands wrapper. Returns frame + detection status; caller handles display."""
 
     def __init__(
         self,
@@ -40,8 +36,7 @@ class MediaPipeHandTracker:
         self.cap = cv2.VideoCapture(camera_id)
         if not self.cap.isOpened():
             raise RuntimeError(
-                f"Cannot open camera {camera_id}. "
-                "Please check --camera-id."
+                f"Cannot open camera {camera_id}. Please check --camera-id."
             )
 
         self.mp_hands = mp.solutions.hands
@@ -62,10 +57,16 @@ class MediaPipeHandTracker:
             dtype=np.float64,
         )
 
-    def read(self) -> Optional[HandObservation]:
+    def read(self) -> HandObservation:
+        """Read one frame. Always returns a HandObservation (never None).
+
+        Check obs.detected (or obs.landmarks_image is not None) to see if a hand was found.
+        """
         ret, frame = self.cap.read()
         if not ret:
-            return None
+            return HandObservation(
+                frame_bgr=np.zeros((480, 640, 3), dtype=np.uint8),
+            )
 
         if self.mirror:
             frame = cv2.flip(frame, 1)
@@ -74,7 +75,7 @@ class MediaPipeHandTracker:
         result = self.hands.process(rgb)
 
         if not result.multi_hand_landmarks:
-            return None
+            return HandObservation(frame_bgr=frame)
 
         hand_landmarks = result.multi_hand_landmarks[0]
         landmarks_image = self._landmarks_to_np(hand_landmarks)
@@ -92,18 +93,11 @@ class MediaPipeHandTracker:
 
         if self.draw:
             self.mp_draw.draw_landmarks(
-                frame,
-                hand_landmarks,
-                self.mp_hands.HAND_CONNECTIONS,
+                frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS,
             )
             cv2.putText(
-                frame,
-                f"{handedness}: {score:.2f}",
-                (20, 40),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1.0,
-                (0, 255, 0),
-                2,
+                frame, f"{handedness}: {score:.2f}", (20, 40),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2,
             )
 
         return HandObservation(
@@ -112,6 +106,7 @@ class MediaPipeHandTracker:
             landmarks_world=landmarks_world,
             handedness=handedness,
             score=score,
+            detected=True,
         )
 
     def close(self):

@@ -55,7 +55,7 @@ def make_parser():
     p.add_argument("--pos-scale", type=float, default=2.2)
     p.add_argument("--filter-alpha", type=float, default=0.18)
     p.add_argument("--output-dir", type=str, default="results/hand_retargeting/runs")
-    p.add_argument("--show-camera", action="store_true", help="Show camera window")
+    p.add_argument("--show-camera", action="store_true", help="Show camera window with overlay")
     return p
 
 
@@ -119,7 +119,7 @@ def main():
     print(f"  Run ID:    {run_id}")
     print(f"  Duration:  {args.duration}s")
     print(f"  Pos scale: {args.pos_scale}")
-    print(f"  Filter α:  {args.filter_alpha}")
+    print(f"  Filter \u03b1:  {args.filter_alpha}")
     print(f"  Output:    {csv_path}")
     print(f"  Camera:    {'window' if args.show_camera else 'no display'}")
     print("==============================\n")
@@ -143,17 +143,20 @@ def main():
                 break
 
             obs = tracker.read()
-            detected = obs is not None
+            detected = obs.detected
             score = obs.score if detected else 0.0
             wrist_pos = obs.landmarks_image[0].copy() if detected else np.zeros(3)
+            pinch = 1.0  # will be updated by retargeter
 
             # --- Single retargeter.update() call ---
+            target = None
             if detected:
                 target = retargeter.update(obs)
                 if target.valid:
                     target_pos = target.pos
                     target_rot = target.rot
                     target_gripper = target.gripper_width
+                    pinch = target.pinch_ratio
 
             # --- Control ---
             tau = controller.task_space_pd(
@@ -184,7 +187,7 @@ def main():
                 "detected_hand": int(detected),
                 "detection_confidence": f"{score:.4f}" if detected else "",
                 "wrist_x": f"{wrist_pos[0]:.6f}", "wrist_y": f"{wrist_pos[1]:.6f}", "wrist_z": f"{wrist_pos[2]:.6f}",
-                "pinch_ratio": f"{target.pinch_ratio:.4f}" if detected else "",
+                "pinch_ratio": f"{pinch:.4f}",
                 "target_pos_x": f"{target_pos[0]:.4f}", "target_pos_y": f"{target_pos[1]:.4f}", "target_pos_z": f"{target_pos[2]:.4f}",
                 "filtered_target_pos_x": f"{target_pos[0]:.4f}", "filtered_target_pos_y": f"{target_pos[1]:.4f}", "filtered_target_pos_z": f"{target_pos[2]:.4f}",
                 "target_quat_w": f"{target_quat[3]:.6f}", "target_quat_x": f"{target_quat[0]:.6f}",
@@ -201,17 +204,16 @@ def main():
             csv_writer.writerow(row)
             frame_id += 1
 
-            # --- Camera window ---
-            if args.show_camera and obs is not None:
+            # --- Camera window (always show when --show-camera is set) ---
+            if args.show_camera:
                 frame = obs.frame_bgr.copy()
                 y = 30
-                for text in [
-                    f"Detected: {score:.2f}",
-                    f"Target: ({target_pos[0]:.3f}, {target_pos[1]:.3f}, {target_pos[2]:.3f})",
-                    f"EE err: {pos_err:.3f}m",
-                    f"Gripper: {target_gripper:.4f}m",
-                    "ESC to quit",
-                ]:
+                lines = [f"Hand: {'detected' if detected else 'no hand'} ({score:.2f})",
+                         f"Target: ({target_pos[0]:.3f}, {target_pos[1]:.3f}, {target_pos[2]:.3f})",
+                         f"EE err: {pos_err:.3f}m",
+                         f"Gripper: {target_gripper:.4f}m",
+                         "ESC to quit"]
+                for text in lines:
                     cv2.putText(frame, text, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2)
                     y += 28
                 cv2.imshow("Hand Retargeting Camera", frame)
