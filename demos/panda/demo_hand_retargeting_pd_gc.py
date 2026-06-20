@@ -173,7 +173,7 @@ def main():
 
             actual_pos, actual_rot = get_body_pose(model, data, "hand")
             pos_err = np.linalg.norm(target_pos - actual_pos)
-            rot_err = np.linalg.norm(rotation_error_rotvec(target.rot, actual_rot))
+            rot_err = np.linalg.norm(rotation_error_rotvec(target_rot, actual_rot))
             tau_norm = float(np.linalg.norm(tau))
             target_quat = Rotation.from_matrix(target_rot).as_quat()
             q, qd = data.qpos[:7].copy(), data.qvel[:7].copy()
