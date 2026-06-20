@@ -1,14 +1,16 @@
 ﻿# demos/panda/demo_hand_retargeting_pd_gc.py
-"""Main experiment: camera -> hand landmarks -> Panda target -> MuJoCo tracking -> data logging."""
 
-import sys
-from pathlib import Path
+"""
+Main experiment:
+camera -> MediaPipe hand landmarks -> hand-to-Panda target pose
+-> MuJoCo Panda torque tracking -> data logging.
+"""
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))
+from __future__ import annotations
 
 import argparse
 import csv
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -19,87 +21,318 @@ import mujoco.viewer
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from core.dynamics_control import (has_affine_position_actuators, 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from core.dynamics_control import (  # noqa: E402
     PandaTorqueController,
     TorqueLimit,
     get_body_pose,
+    has_affine_position_actuators,
+    print_actuator_diagnostics,
     rotation_error_rotvec,
 )
-from retargeting.hand_to_panda import HandToPandaRetargeter
-from vision.hand_tracker import MediaPipeHandTracker
+from retargeting.hand_to_panda import HandToPandaRetargeter  # noqa: E402
+from vision.hand_tracker import MediaPipeHandTracker  # noqa: E402
 
 
 CSV_FIELDS = [
-    "timestamp", "frame_id", "detected_hand", "detection_confidence",
-    "wrist_x", "wrist_y", "wrist_z",
+    "timestamp",
+    "frame_id",
+    "detected_hand",
+    "detection_confidence",
+    "wrist_x",
+    "wrist_y",
+    "wrist_z",
     "pinch_ratio",
-    "target_pos_x", "target_pos_y", "target_pos_z",
-    "filtered_target_pos_x", "filtered_target_pos_y", "filtered_target_pos_z",
-    "target_quat_w", "target_quat_x", "target_quat_y", "target_quat_z",
-    "gripper_width", "workspace_clipped",
-    "actual_ee_pos_x", "actual_ee_pos_y", "actual_ee_pos_z",
-    "ee_position_error", "ee_orientation_error",
-    "joint_q_1", "joint_q_2", "joint_q_3", "joint_q_4",
-    "joint_q_5", "joint_q_6", "joint_q_7",
-    "joint_dq_1", "joint_dq_2", "joint_dq_3", "joint_dq_4",
-    "joint_dq_5", "joint_dq_6", "joint_dq_7",
-    "torque_norm", "max_abs_torque",
+    "target_pos_x",
+    "target_pos_y",
+    "target_pos_z",
+    "filtered_target_pos_x",
+    "filtered_target_pos_y",
+    "filtered_target_pos_z",
+    "target_quat_w",
+    "target_quat_x",
+    "target_quat_y",
+    "target_quat_z",
+    "gripper_width",
+    "workspace_clipped",
+    "actual_ee_pos_x",
+    "actual_ee_pos_y",
+    "actual_ee_pos_z",
+    "ee_position_error",
+    "ee_orientation_error",
+    "joint_q_1",
+    "joint_q_2",
+    "joint_q_3",
+    "joint_q_4",
+    "joint_q_5",
+    "joint_q_6",
+    "joint_q_7",
+    "joint_dq_1",
+    "joint_dq_2",
+    "joint_dq_3",
+    "joint_dq_4",
+    "joint_dq_5",
+    "joint_dq_6",
+    "joint_dq_7",
+    "torque_norm",
+    "max_abs_torque",
 ]
 
 
-def make_parser():
+def make_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="Hand retargeting: camera -> Panda -> data logging")
+        description="Camera-based hand retargeting demo for MuJoCo Panda torque control."
+    )
+
+    p.add_argument(
+        "--model",
+        type=str,
+        default="models/panda/panda_torque.xml",
+        help="MuJoCo model path. Use panda_torque.xml for task-space torque control.",
+    )
+
     p.add_argument("--camera-id", type=int, default=0)
-    p.add_argument("--duration", type=float, default=20)
+    p.add_argument("--duration", type=float, default=20.0)
+    p.add_argument("--output-dir", type=str, default="results/hand_retargeting/runs")
+    p.add_argument("--save-csv", action="store_true", help="Save run CSV.")
+    p.add_argument("--show-camera", action="store_true", help="Show one OpenCV camera window.")
+    p.add_argument("--no-camera-window", action="store_true", help="Disable camera window.")
+    p.add_argument("--sim-substeps", type=int, default=20)
+
+    # Hand-to-Panda mapping parameters.
     p.add_argument("--pos-scale", type=float, default=2.2)
     p.add_argument("--filter-alpha", type=float, default=0.18)
-    p.add_argument("--output-dir", type=str, default="results/hand_retargeting/runs")
-    p.add_argument("--model", type=str, default="models/panda/panda.xml", help="Panda MJCF model path")
-    p.add_argument("--no-camera-window", action="store_true", help="Disable camera window (run headless)")
-    p.add_argument("--kp-pos", type=float, default=1400.0, help="Task-space position proportional gain")
-    p.add_argument("--kd-pos", type=float, default=100.0, help="Task-space position derivative gain")
-    p.add_argument("--kp-ori", type=float, default=8.0, help="Task-space orientation proportional gain")
-    p.add_argument("--kd-ori", type=float, default=2.0, help="Task-space orientation derivative gain")
-    p.add_argument("--torque-limit", type=float, default=87.0, help="Per-joint torque limit [Nm]")
-    p.add_argument("--max-target-step", type=float, default=0.035, help="Max target position step per frame [m]")
+    p.add_argument("--max-target-step", type=float, default=0.035)
+
+    # Task-space controller parameters.
+    p.add_argument("--kp-pos", type=float, default=250.0)
+    p.add_argument("--kd-pos", type=float, default=35.0)
+    p.add_argument("--kp-ori", type=float, default=25.0)
+    p.add_argument("--kd-ori", type=float, default=4.0)
+
+    # Torque limits.
+    p.add_argument(
+        "--torque-limit",
+        type=float,
+        default=None,
+        help=(
+            "Uniform torque limit for all 7 joints. "
+            "If omitted, use Panda-like per-joint limits [87,87,87,87,12,12,12]."
+        ),
+    )
+
     return p
 
 
-def main():
+def limit_target_step(
+    previous: np.ndarray,
+    current: np.ndarray,
+    max_step: float,
+) -> np.ndarray:
+    """Limit target position jump per camera frame."""
+    previous = np.asarray(previous, dtype=float)
+    current = np.asarray(current, dtype=float)
+
+    delta = current - previous
+    norm = float(np.linalg.norm(delta))
+
+    if max_step <= 0.0 or norm <= max_step:
+        return current
+
+    return previous + delta / (norm + 1e-12) * max_step
+
+
+def open_csv_writer(csv_path: Path):
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(csv_path, "w", newline="", encoding="utf-8")
+    writer = csv.DictWriter(fh, fieldnames=CSV_FIELDS)
+    writer.writeheader()
+    return fh, writer
+
+
+def write_row(
+    writer: csv.DictWriter,
+    *,
+    elapsed: float,
+    frame_id: int,
+    detected: bool,
+    score: float,
+    wrist_pos: np.ndarray,
+    pinch: float,
+    target_pos: np.ndarray,
+    target_rot: np.ndarray,
+    target_gripper: float,
+    workspace_clipped: bool,
+    actual_pos: np.ndarray,
+    actual_rot: np.ndarray,
+    tau: np.ndarray,
+    q: np.ndarray,
+    qd: np.ndarray,
+) -> None:
+    pos_err = float(np.linalg.norm(target_pos - actual_pos))
+    rot_err = float(np.linalg.norm(rotation_error_rotvec(target_rot, actual_rot)))
+    tau_norm = float(np.linalg.norm(tau))
+    max_abs_tau = float(np.max(np.abs(tau))) if tau.size > 0 else 0.0
+
+    quat_xyzw = Rotation.from_matrix(target_rot).as_quat()
+    quat_wxyz = np.array([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])
+
+    row = {
+        "timestamp": f"{elapsed:.4f}",
+        "frame_id": frame_id,
+        "detected_hand": int(detected),
+        "detection_confidence": f"{score:.4f}" if detected else "",
+        "wrist_x": f"{wrist_pos[0]:.6f}",
+        "wrist_y": f"{wrist_pos[1]:.6f}",
+        "wrist_z": f"{wrist_pos[2]:.6f}",
+        "pinch_ratio": f"{pinch:.6f}",
+        "target_pos_x": f"{target_pos[0]:.6f}",
+        "target_pos_y": f"{target_pos[1]:.6f}",
+        "target_pos_z": f"{target_pos[2]:.6f}",
+        "filtered_target_pos_x": f"{target_pos[0]:.6f}",
+        "filtered_target_pos_y": f"{target_pos[1]:.6f}",
+        "filtered_target_pos_z": f"{target_pos[2]:.6f}",
+        "target_quat_w": f"{quat_wxyz[0]:.6f}",
+        "target_quat_x": f"{quat_wxyz[1]:.6f}",
+        "target_quat_y": f"{quat_wxyz[2]:.6f}",
+        "target_quat_z": f"{quat_wxyz[3]:.6f}",
+        "gripper_width": f"{target_gripper:.6f}",
+        "workspace_clipped": int(workspace_clipped),
+        "actual_ee_pos_x": f"{actual_pos[0]:.6f}",
+        "actual_ee_pos_y": f"{actual_pos[1]:.6f}",
+        "actual_ee_pos_z": f"{actual_pos[2]:.6f}",
+        "ee_position_error": f"{pos_err:.6f}",
+        "ee_orientation_error": f"{rot_err:.6f}",
+        "torque_norm": f"{tau_norm:.6f}",
+        "max_abs_torque": f"{max_abs_tau:.6f}",
+    }
+
+    for i in range(7):
+        row[f"joint_q_{i + 1}"] = f"{q[i]:.6f}"
+        row[f"joint_dq_{i + 1}"] = f"{qd[i]:.6f}"
+
+    writer.writerow(row)
+
+
+def draw_camera_overlay(
+    frame: np.ndarray,
+    *,
+    detected: bool,
+    score: float,
+    target_pos: np.ndarray,
+    actual_pos: np.ndarray,
+    pos_err: float,
+    target_gripper: float,
+    tau_norm: float,
+) -> np.ndarray:
+    """Draw one camera debug window overlay."""
+    out = frame.copy()
+
+    lines = [
+        f"Hand: {'detected' if detected else 'no hand'} ({score:.2f})",
+        f"Target: ({target_pos[0]:.3f}, {target_pos[1]:.3f}, {target_pos[2]:.3f})",
+        f"Actual: ({actual_pos[0]:.3f}, {actual_pos[1]:.3f}, {actual_pos[2]:.3f})",
+        f"EE error: {pos_err:.4f} m",
+        f"Gripper: {target_gripper:.4f} m",
+        f"Tau norm: {tau_norm:.2f} Nm",
+        "ESC: quit | r: reset hand baseline",
+    ]
+
+    y = 28
+    for text in lines:
+        cv2.putText(
+            out,
+            text,
+            (10, y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            (0, 255, 0),
+            2,
+        )
+        y += 26
+
+    return out
+
+
+def main() -> None:
     args = make_parser().parse_args()
 
-    # --- Output dir ---
+    show_camera = args.show_camera and not args.no_camera_window
+
+    # ------------------------------------------------------------------
+    # Output
+    # ------------------------------------------------------------------
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = Path(args.output_dir) / run_id
-    raw_dir = run_dir / "raw"
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = raw_dir / "hand_retargeting_run.csv"
+    csv_path = run_dir / "raw" / "hand_retargeting_run.csv"
 
-    # --- MuJoCo setup ---
-    model = mujoco.MjModel.from_xml_path(args.model)
+    csv_fh = None
+    csv_writer = None
+    if args.save_csv:
+        csv_fh, csv_writer = open_csv_writer(csv_path)
+
+    # ------------------------------------------------------------------
+    # MuJoCo setup
+    # ------------------------------------------------------------------
+    model_path = Path(args.model)
+    if not model_path.is_absolute():
+        model_path = PROJECT_ROOT / model_path
+
+    model = mujoco.MjModel.from_xml_path(str(model_path))
     data = mujoco.MjData(model)
 
-    q_home = np.array([0.0, -0.7, 0.0, -2.2, 0.0, 1.6, 0.8])
+    print("\n=== Hand Retargeting Demo ===")
+    print(f"Model: {model_path}")
+    print("Control mode: torque actuator via data.ctrl[:7]")
+    print(f"Duration: {args.duration:.2f}s")
+    print(f"Camera ID: {args.camera_id}")
+    print(f"Camera window: {show_camera}")
+    print(f"Save CSV: {args.save_csv}")
+    if args.save_csv:
+        print(f"CSV: {csv_path}")
+    print("==============================\n")
+
+    print_actuator_diagnostics(model, dof=7)
+
+    if has_affine_position_actuators(model, dof=7):
+        raise RuntimeError(
+            "This demo requires a torque-actuated Panda model. "
+            "Please use --model models/panda/panda_torque.xml. "
+            "The original panda.xml uses position actuators and will fight "
+            "task-space torque control."
+        )
+
+    q_home = np.array([0.0, -0.7, 0.0, -2.2, 0.0, 1.6, 0.8], dtype=float)
+
     data.qpos[:7] = q_home
     data.qvel[:7] = 0.0
-    if model.nu >= 7:
-        data.ctrl[:7] = q_home
+
+    # For torque motors, ctrl means torque. Never write q_home into ctrl[:7].
+    data.ctrl[:] = 0.0
+    data.qfrc_applied[:] = 0.0
     mujoco.mj_forward(model, data)
 
     body_name = "hand"
     base_pos, base_rot = get_body_pose(model, data, body_name)
 
-    torque_limit = TorqueLimit(
-        lower=-np.full(7, args.torque_limit, dtype=float),
-        upper=np.full(7, args.torque_limit, dtype=float),
-    )
+    if args.torque_limit is None:
+        torque_limit = TorqueLimit.panda_default()
+    else:
+        torque_limit = TorqueLimit.uniform(args.torque_limit, dof=7)
+
     controller = PandaTorqueController(
-        model=model, data=data, dof=7, body_name=body_name,
+        model=model,
+        data=data,
+        dof=7,
+        body_name=body_name,
         torque_limit=torque_limit,
     )
 
-    # --- Retargeter ---
+    # ------------------------------------------------------------------
+    # Retargeter
+    # ------------------------------------------------------------------
     retargeter = HandToPandaRetargeter(
         robot_origin=base_pos.copy(),
         position_scale_xy=args.pos_scale,
@@ -108,139 +341,167 @@ def main():
         filter_alpha=args.filter_alpha,
     )
 
-    # --- Camera ---
+    # ------------------------------------------------------------------
+    # Camera
+    # ------------------------------------------------------------------
     try:
         tracker = MediaPipeHandTracker(
-            camera_id=args.camera_id, draw=True, mirror=True,
+            camera_id=args.camera_id,
+            draw=True,
+            mirror=True,
         )
-    except RuntimeError as e:
-        print(f"Camera error: {e}")
-        return
-
-    # --- CSV ---
-    fh_csv = open(csv_path, "w", newline="", encoding="utf-8")
-    csv_writer = csv.DictWriter(fh_csv, fieldnames=CSV_FIELDS)
-    csv_writer.writeheader()
-
-    print(f"\n=== Hand Retargeting Demo ===")
-    print(f"  Run ID:    {run_id}")
-    print(f"  Duration:  {args.duration}s")
-    print(f"  Pos scale: {args.pos_scale}")
-    print(f"  Filter \u03b1:  {args.filter_alpha}")
-    print(f"  Output:    {csv_path}")
-    print(f"  Camera:    {'window' if not args.no_camera_window else 'no display'}")
-    print("==============================\n")
+    except RuntimeError as exc:
+        if csv_fh is not None:
+            csv_fh.close()
+        raise RuntimeError(f"Camera is not available. Please check --camera-id. {exc}") from exc
 
     target_pos = base_pos.copy()
     target_rot = base_rot.copy()
     target_gripper = 0.04
-    sim_substeps = 60
+    target_valid = False
+    workspace_clipped = False
+    pinch = 1.0
 
-    demo_start = time.time()
+    last_tau = np.zeros(7)
     frame_id = 0
+    demo_start = time.time()
 
-    with mujoco.viewer.launch_passive(model, data) as viewer:
-        while viewer.is_running():
-            elapsed = time.time() - demo_start
-            if elapsed > args.duration:
-                print(f"Reached {args.duration}s.")
-                break
-
-            obs = tracker.read()
-            detected = obs.detected
-            score = obs.score if detected else 0.0
-            wrist_pos = obs.landmarks_image[0].copy() if detected else np.zeros(3)
-            pinch = 1.0  # will be updated by retargeter
-
-            # --- Single retargeter.update() call ---
-            target = None
-            if detected:
-                target = retargeter.update(obs)
-                if target.valid:
-                    target_pos = target.pos
-                    target_rot = target.rot
-                    target_gripper = target.gripper_width
-                    pinch = target.pinch_ratio
-
-            # --- Control ---
-            if detected and (target is None or not target.valid):
-                print("  WARNING: detected but target invalid!")
-            tau = controller.task_space_pd(
-                target_pos=target_pos, target_rot=target_rot,
-                kp_pos=args.kp_pos, kd_pos=args.kd_pos,
-                kp_rot=args.kp_ori, kd_rot=args.kd_ori,
-                gravity_comp=True,
-            )
-
-            use_ctrl = not has_affine_position_actuators(model, 7)
-            for _ in range(sim_substeps):
-                if model.nu >= 8:
-                    data.ctrl[7] = np.clip(target_gripper / 0.04 * 255.0, 0, 255)
-                if use_ctrl:
-                    controller.apply_torque(tau, prefer_ctrl=True)
-                else:
-                    if model.nu >= 7:
-                        data.ctrl[:7] = data.qpos[:7]
-                    controller.apply_torque(tau, prefer_ctrl=False)
-                mujoco.mj_step(model, data)
-
-            actual_pos, actual_rot = get_body_pose(model, data, "hand")
-            pos_err = np.linalg.norm(target_pos - actual_pos)
-            rot_err = np.linalg.norm(rotation_error_rotvec(target_rot, actual_rot))
-            tau_norm = float(np.linalg.norm(tau))
-            target_quat = Rotation.from_matrix(target_rot).as_quat()
-            q, qd = data.qpos[:7].copy(), data.qvel[:7].copy()
-
-            # --- CSV ---
-            row = {
-                "timestamp": f"{elapsed:.3f}", "frame_id": frame_id,
-                "detected_hand": int(detected),
-                "detection_confidence": f"{score:.4f}" if detected else "",
-                "wrist_x": f"{wrist_pos[0]:.6f}", "wrist_y": f"{wrist_pos[1]:.6f}", "wrist_z": f"{wrist_pos[2]:.6f}",
-                "pinch_ratio": f"{pinch:.4f}",
-                "target_pos_x": f"{target_pos[0]:.4f}", "target_pos_y": f"{target_pos[1]:.4f}", "target_pos_z": f"{target_pos[2]:.4f}",
-                "filtered_target_pos_x": f"{target_pos[0]:.4f}", "filtered_target_pos_y": f"{target_pos[1]:.4f}", "filtered_target_pos_z": f"{target_pos[2]:.4f}",
-                "target_quat_w": f"{target_quat[3]:.6f}", "target_quat_x": f"{target_quat[0]:.6f}",
-                "target_quat_y": f"{target_quat[1]:.6f}", "target_quat_z": f"{target_quat[2]:.6f}",
-                "gripper_width": f"{target_gripper:.4f}",
-                "workspace_clipped": "",
-                "actual_ee_pos_x": f"{actual_pos[0]:.4f}", "actual_ee_pos_y": f"{actual_pos[1]:.4f}", "actual_ee_pos_z": f"{actual_pos[2]:.4f}",
-                "ee_position_error": f"{pos_err:.4f}", "ee_orientation_error": f"{rot_err:.6f}",
-                "torque_norm": f"{tau_norm:.2f}", "max_abs_torque": f"{float(np.max(np.abs(tau))):.2f}",
-            }
-            for i in range(7):
-                row[f"joint_q_{i+1}"] = f"{q[i]:.4f}"
-                row[f"joint_dq_{i+1}"] = f"{qd[i]:.4f}"
-            csv_writer.writerow(row)
-            frame_id += 1
-
-            # --- Camera window (show by default, hide with --no-camera-window) ---
-            if not args.no_camera_window:
-                frame = obs.frame_bgr.copy()
-                y = 30
-                lines = [f"Hand: {'detected' if detected else 'no hand'} ({score:.2f})",
-                         f"Target: ({target_pos[0]:.3f}, {target_pos[1]:.3f}, {target_pos[2]:.3f})",
-                         f"EE err: {pos_err:.3f}m",
-                         f"Gripper: {target_gripper:.4f}m",
-                         "ESC to quit"]
-                for text in lines:
-                    cv2.putText(frame, text, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2)
-                    y += 28
-                cv2.imshow("Hand Retargeting Camera", frame)
-                key = cv2.waitKey(1) & 0xFF
-                if key == 27:
+    try:
+        with mujoco.viewer.launch_passive(model, data) as viewer:
+            while viewer.is_running():
+                elapsed = time.time() - demo_start
+                if elapsed >= args.duration:
+                    print(f"Reached {args.duration:.2f}s.")
                     break
-                elif key == ord("r"):
-                    retargeter.reset_origin()
-                    print("  Reset retargeter baseline (pressed r)")
 
-            print(f"frame={frame_id} det={int(detected)} vld={0 if target is None else int(target.valid)} wrist=({wrist_pos[0]:.2f},{wrist_pos[1]:.2f}) tgt=({target_pos[0]:.3f},{target_pos[1]:.3f}) err={pos_err:.4f}m tau={tau_norm:.1f}Nm", flush=True)
+                obs = tracker.read()
+                detected = bool(obs.detected)
+                score = float(obs.score) if detected else 0.0
 
-    fh_csv.close()
-    tracker.close()
-    cv2.destroyAllWindows()
-    print(f"\nSaved: {csv_path}")
-    print(f"Next: python scripts/analyze_hand_retargeting_run.py --input {csv_path}")
+                wrist_pos = (
+                    obs.landmarks_image[0].copy()
+                    if detected and obs.landmarks_image is not None
+                    else np.zeros(3, dtype=float)
+                )
+
+                # ------------------------------------------------------
+                # Retargeting update once per camera frame
+                # ------------------------------------------------------
+                if detected:
+                    target = retargeter.update(obs)
+                    target_valid = bool(getattr(target, "valid", False))
+
+                    if target_valid:
+                        raw_target_pos = np.asarray(target.pos, dtype=float)
+                        target_pos = limit_target_step(
+                            previous=target_pos,
+                            current=raw_target_pos,
+                            max_step=args.max_target_step,
+                        )
+                        target_rot = np.asarray(target.rot, dtype=float)
+                        target_gripper = float(target.gripper_width)
+                        pinch = float(getattr(target, "pinch_ratio", pinch))
+                        workspace_clipped = bool(getattr(target, "workspace_clipped", False))
+                else:
+                    target_valid = False
+
+                # ------------------------------------------------------
+                # Closed-loop MuJoCo stepping
+                # Important: recompute tau at every simulation substep.
+                # ------------------------------------------------------
+                for _ in range(args.sim_substeps):
+                    tau = controller.task_space_pd(
+                        target_pos=target_pos,
+                        target_rot=target_rot,
+                        kp_pos=args.kp_pos,
+                        kd_pos=args.kd_pos,
+                        kp_rot=args.kp_ori,
+                        kd_rot=args.kd_ori,
+                        gravity_comp=True,
+                    )
+
+                    last_tau = controller.apply_torque(tau, prefer_ctrl=True)
+
+                    # Keep gripper actuator control if the XML has it.
+                    if model.nu >= 8:
+                        data.ctrl[7] = np.clip(target_gripper / 0.04 * 255.0, 0.0, 255.0)
+
+                    mujoco.mj_step(model, data)
+
+                actual_pos, actual_rot = get_body_pose(model, data, body_name)
+                pos_err = float(np.linalg.norm(target_pos - actual_pos))
+                tau_norm = float(np.linalg.norm(last_tau))
+
+                q = data.qpos[:7].copy()
+                qd = data.qvel[:7].copy()
+
+                if csv_writer is not None:
+                    write_row(
+                        csv_writer,
+                        elapsed=elapsed,
+                        frame_id=frame_id,
+                        detected=detected,
+                        score=score,
+                        wrist_pos=wrist_pos,
+                        pinch=pinch,
+                        target_pos=target_pos,
+                        target_rot=target_rot,
+                        target_gripper=target_gripper,
+                        workspace_clipped=workspace_clipped,
+                        actual_pos=actual_pos,
+                        actual_rot=actual_rot,
+                        tau=last_tau,
+                        q=q,
+                        qd=qd,
+                    )
+
+                if show_camera:
+                    frame = obs.frame_bgr.copy()
+                    frame = draw_camera_overlay(
+                        frame,
+                        detected=detected,
+                        score=score,
+                        target_pos=target_pos,
+                        actual_pos=actual_pos,
+                        pos_err=pos_err,
+                        target_gripper=target_gripper,
+                        tau_norm=tau_norm,
+                    )
+                    cv2.imshow("Hand Retargeting Camera", frame)
+                    key = cv2.waitKey(1) & 0xFF
+
+                    if key == 27:
+                        break
+
+                    if key == ord("r"):
+                        retargeter.reset_origin()
+                        target_pos = base_pos.copy()
+                        target_rot = base_rot.copy()
+                        print("Reset retargeter baseline.")
+
+                viewer.sync()
+
+                print(
+                    f"frame={frame_id:05d} "
+                    f"det={int(detected)} "
+                    f"valid={int(target_valid)} "
+                    f"tgt=({target_pos[0]:.3f},{target_pos[1]:.3f},{target_pos[2]:.3f}) "
+                    f"act=({actual_pos[0]:.3f},{actual_pos[1]:.3f},{actual_pos[2]:.3f}) "
+                    f"err={pos_err:.4f}m "
+                    f"tau={tau_norm:.2f}Nm",
+                    flush=True,
+                )
+
+                frame_id += 1
+
+    finally:
+        tracker.close()
+        cv2.destroyAllWindows()
+
+        if csv_fh is not None:
+            csv_fh.close()
+            print(f"\nSaved: {csv_path}")
+            print(f"Next: python scripts/analyze_hand_retargeting_run.py --input {csv_path}")
 
 
 if __name__ == "__main__":
