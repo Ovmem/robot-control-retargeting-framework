@@ -18,7 +18,7 @@ Camera
   -> Run data logging (CSV)
   -> Metrics and plots
   -> Parameter tuning
-`
+```
 
 **当前边界：**
 
@@ -37,7 +37,7 @@ Camera
 
 ```bash
 python -m demos.panda.demo_hand_retargeting_pd_gc --camera-id 0 --duration 20 --show-camera --output-dir results/hand_retargeting/runs
-`
+```
 
 参数说明：
 
@@ -58,7 +58,7 @@ results/hand_retargeting/runs/20260620_143022/
 |   +-- hand_retargeting_run.csv
 +-- figures/          # 运行后通过分析脚本生成
 +-- metrics/          # 运行后通过分析脚本生成
-`
+```
 
 CSV 记录字段：timestamp, frame_id, detected_hand, detection_confidence, wrist position, pinch_ratio, target position (raw + filtered), target quaternion, gripper_width, workspace_clipped, actual end-effector position, ee_position_error, ee_orientation_error, joint positions/velocities, torque_norm, max_abs_torque。
 
@@ -66,7 +66,7 @@ CSV 记录字段：timestamp, frame_id, detected_hand, detection_confidence, wri
 
 ```bash
 python scripts/analyze_hand_retargeting_run.py --input results/hand_retargeting/runs/<run_id>/raw/hand_retargeting_run.csv
-`
+```
 
 生成的图：
 
@@ -86,7 +86,7 @@ python scripts/analyze_hand_retargeting_run.py --input results/hand_retargeting/
 
 ```bash
 python scripts/sweep_hand_retargeting_params.py --input results/hand_retargeting/runs/<run_id>/raw/hand_retargeting_run.csv
-`
+```
 
 不重新打开摄像头，而是读取已录制的手部数据，用不同映射参数重新计算 target pose 并比较指标。
 
@@ -99,7 +99,7 @@ python scripts/sweep_hand_retargeting_params.py --input results/hand_retargeting
 ```bash
 python scripts/run_preliminary_control_tuning.py
 python scripts/plot_preliminary_control_tuning.py
-`
+```
 
 使用固定的末端目标轨迹（正弦运动），测试 5 组任务空间控制参数（soft / balanced / responsive / aggressive / torque_limited），选择综合评分最低的作为推荐参数。不依赖摄像头，仅用于确保 hand retargeting demo 开始前控制器参数基本合理。
 
@@ -122,7 +122,7 @@ cat results/preliminary_control/metrics/best_control_params.csv
 
 ```bash
 pytest -q -m "not viewer and not interactive"
-`
+```
 
 ---
 
@@ -174,7 +174,7 @@ robot_control_retargeting_framework/
 |   +-- retargeting.md                      # 动作映射坐标系文档
 |   +-- testing.md                          # 测试策略说明
 +-- README.md
-`
+```
 
 ---
 
@@ -189,7 +189,7 @@ Step 2: Open generated plots to explain mapping stability and tracking error.
 
 Step 3: Show parameter sweep results, explain how smoothing, scale, and workspace bounds affect the mapping.
     python scripts/sweep_hand_retargeting_params.py --input results/hand_retargeting/runs/<id>/raw/hand_retargeting_run.csv
-`
+```
 
 ---
 
@@ -197,7 +197,7 @@ Step 3: Show parameter sweep results, explain how smoothing, scale, and workspac
 
 ```bash
 pip install -r requirements.txt
-`
+```
 
 主要依赖：mujoco, numpy, scipy, matplotlib, opencv-python, mediapipe, pytest。
 
