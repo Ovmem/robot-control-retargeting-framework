@@ -19,7 +19,7 @@ import mujoco.viewer
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from core.dynamics_control import (
+from core.dynamics_control import (has_affine_position_actuators, 
     PandaTorqueController,
     TorqueLimit,
     get_body_pose,
