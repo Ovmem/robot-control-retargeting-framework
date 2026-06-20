@@ -11,3 +11,7 @@ temp/
 
 # Raw generated data (not committed)
 results/preliminary_control/raw/*.csv
+
+# Generated experiment logs
+results/debug_task_space_follow.csv
+results/hand_retargeting/runs/
