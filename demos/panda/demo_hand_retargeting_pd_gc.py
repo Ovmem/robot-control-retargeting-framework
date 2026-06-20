@@ -110,7 +110,7 @@ def main():
     # --- Camera ---
     try:
         tracker = MediaPipeHandTracker(
-            camera_id=args.camera_id, draw=False, mirror=True,
+            camera_id=args.camera_id, draw=True, mirror=True,
         )
     except RuntimeError as e:
         print(f"Camera error: {e}")
