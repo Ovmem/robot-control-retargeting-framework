@@ -56,11 +56,11 @@ def make_parser():
     p.add_argument("--filter-alpha", type=float, default=0.18)
     p.add_argument("--output-dir", type=str, default="results/hand_retargeting/runs")
     p.add_argument("--no-camera-window", action="store_true", help="Disable camera window (run headless)")
-    p.add_argument("--kp-pos", type=float, default=120.0, help="Task-space position proportional gain")
-    p.add_argument("--kd-pos", type=float, default=24.0, help="Task-space position derivative gain")
-    p.add_argument("--kp-ori", type=float, default=35.0, help="Task-space orientation proportional gain")
-    p.add_argument("--kd-ori", type=float, default=7.0, help="Task-space orientation derivative gain")
-    p.add_argument("--torque-limit", type=float, default=55.0, help="Per-joint torque limit [Nm]")
+    p.add_argument("--kp-pos", type=float, default=1400.0, help="Task-space position proportional gain")
+    p.add_argument("--kd-pos", type=float, default=100.0, help="Task-space position derivative gain")
+    p.add_argument("--kp-ori", type=float, default=8.0, help="Task-space orientation proportional gain")
+    p.add_argument("--kd-ori", type=float, default=2.0, help="Task-space orientation derivative gain")
+    p.add_argument("--torque-limit", type=float, default=87.0, help="Per-joint torque limit [Nm]")
     p.add_argument("--max-target-step", type=float, default=0.035, help="Max target position step per frame [m]")
     return p
 

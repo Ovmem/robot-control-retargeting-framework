@@ -108,7 +108,15 @@ python scripts/plot_preliminary_control_tuning.py
 cat results/preliminary_control/metrics/best_control_params.csv
 ```
 
-推荐参数可通过 --kp-pos, --kd-pos, --kp-ori, --kd-ori, --torque-limit, --max-target-step 传入真实 demo。
+推荐参数可通过 CLI 传入 demo（见下）。但注意：初步调参使用慢速正弦轨迹，所选参数增益偏低（kp_pos=120）。真实手部运动速度更快，demo 默认使用更高增益（kp_pos=1400, torque_limit=87），以确保跟踪响应足够快。
+
+`ash
+# 使用推荐参数（适合慢速跟踪）
+python -m demos.panda.demo_hand_retargeting_pd_gc --camera-id 0 --duration 20 --kp-pos 120 --kd-pos 24 --kp-ori 35 --kd-ori 7 --torque-limit 55
+
+# 使用默认高增益（适合实时跟踪）
+python -m demos.panda.demo_hand_retargeting_pd_gc --camera-id 0 --duration 20 --show-camera
+`
 
 | 模式 | kp_pos | kd_pos | kp_ori | kd_ori | torque_limit | Mean EE err [m] | Mean torque [Nm] | Score |
 |------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
