@@ -162,6 +162,8 @@ def main():
                     pinch = target.pinch_ratio
 
             # --- Control ---
+            if detected and (target is None or not target.valid):
+                print("  WARNING: detected but target invalid!")
             tau = controller.task_space_pd(
                 target_pos=target_pos, target_rot=target_rot,
                 kp_pos=args.kp_pos, kd_pos=args.kd_pos,
@@ -223,7 +225,7 @@ def main():
                 if cv2.waitKey(1) & 0xFF == 27:
                     break
 
-            print(f"frame={frame_id} det={int(detected)} wrist=({wrist_pos[0]:.2f},{wrist_pos[1]:.2f}) tgt=({target_pos[0]:.3f},{target_pos[1]:.3f}) err={pos_err:.4f}m tau={tau_norm:.1f}Nm", flush=True)
+            print(f"frame={frame_id} det={int(detected)} vld={0 if target is None else int(target.valid)} wrist=({wrist_pos[0]:.2f},{wrist_pos[1]:.2f}) tgt=({target_pos[0]:.3f},{target_pos[1]:.3f}) err={pos_err:.4f}m tau={tau_norm:.1f}Nm", flush=True)
 
     fh_csv.close()
     tracker.close()
