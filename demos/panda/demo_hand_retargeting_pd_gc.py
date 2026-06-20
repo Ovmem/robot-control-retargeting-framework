@@ -55,7 +55,7 @@ def make_parser():
     p.add_argument("--pos-scale", type=float, default=2.2)
     p.add_argument("--filter-alpha", type=float, default=0.18)
     p.add_argument("--output-dir", type=str, default="results/hand_retargeting/runs")
-    p.add_argument("--show-camera", action="store_true", help="Show camera window with overlay")
+    p.add_argument("--no-camera-window", action="store_true", help="Disable camera window (run headless)")
     return p
 
 
@@ -121,16 +121,13 @@ def main():
     print(f"  Pos scale: {args.pos_scale}")
     print(f"  Filter \u03b1:  {args.filter_alpha}")
     print(f"  Output:    {csv_path}")
-    print(f"  Camera:    {'window' if args.show_camera else 'no display'}")
+    print(f"  Camera:    {'window' if not args.no_camera_window else 'no display'}")
     print("==============================\n")
 
     target_pos = base_pos.copy()
     target_rot = base_rot.copy()
     target_gripper = 0.04
     sim_substeps = 60
-
-    if args.show_camera:
-        cv2.namedWindow("Hand Retargeting Camera", cv2.WINDOW_NORMAL)
 
     demo_start = time.time()
     frame_id = 0
@@ -204,8 +201,8 @@ def main():
             csv_writer.writerow(row)
             frame_id += 1
 
-            # --- Camera window (always show when --show-camera is set) ---
-            if args.show_camera:
+            # --- Camera window (show by default, hide with --no-camera-window) ---
+            if not args.no_camera_window:
                 frame = obs.frame_bgr.copy()
                 y = 30
                 lines = [f"Hand: {'detected' if detected else 'no hand'} ({score:.2f})",
