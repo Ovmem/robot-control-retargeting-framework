@@ -56,6 +56,12 @@ def make_parser():
     p.add_argument("--filter-alpha", type=float, default=0.18)
     p.add_argument("--output-dir", type=str, default="results/hand_retargeting/runs")
     p.add_argument("--no-camera-window", action="store_true", help="Disable camera window (run headless)")
+    p.add_argument("--kp-pos", type=float, default=120.0, help="Task-space position proportional gain")
+    p.add_argument("--kd-pos", type=float, default=24.0, help="Task-space position derivative gain")
+    p.add_argument("--kp-ori", type=float, default=35.0, help="Task-space orientation proportional gain")
+    p.add_argument("--kd-ori", type=float, default=7.0, help="Task-space orientation derivative gain")
+    p.add_argument("--torque-limit", type=float, default=55.0, help="Per-joint torque limit [Nm]")
+    p.add_argument("--max-target-step", type=float, default=0.035, help="Max target position step per frame [m]")
     return p
 
 
@@ -84,8 +90,8 @@ def main():
     base_pos, base_rot = get_body_pose(model, data, body_name)
 
     torque_limit = TorqueLimit(
-        lower=-np.array([87, 87, 87, 87, 12, 12, 12], dtype=float),
-        upper=np.array([87, 87, 87, 87, 12, 12, 12], dtype=float),
+        lower=-np.full(7, args.torque_limit, dtype=float),
+        upper=np.full(7, args.torque_limit, dtype=float),
     )
     controller = PandaTorqueController(
         model=model, data=data, dof=7, body_name=body_name,
@@ -158,9 +164,9 @@ def main():
             # --- Control ---
             tau = controller.task_space_pd(
                 target_pos=target_pos, target_rot=target_rot,
-                kp_pos=np.array([1400.0, 1100.0, 1600.0]),
-                kd_pos=np.array([100.0, 85.0, 110.0]),
-                kp_rot=8.0, kd_rot=2.0, gravity_comp=True,
+                kp_pos=args.kp_pos, kd_pos=args.kd_pos,
+                kp_rot=args.kp_ori, kd_rot=args.kd_ori,
+                gravity_comp=True,
             )
 
             for _ in range(sim_substeps):

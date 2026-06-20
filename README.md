@@ -1,4 +1,4 @@
-# Robot Control & Hand-to-Panda Retargeting Framework
+﻿# Robot Control & Hand-to-Panda Retargeting Framework
 
 基于 MuJoCo 和 Franka Panda 的真实摄像头手部输入到机器人末端动作映射实验框架。
 
@@ -35,7 +35,7 @@ Camera
 
 ### 1. 运行实时 hand retargeting demo 并保存真实运行数据
 
-`ash
+```bash
 python -m demos.panda.demo_hand_retargeting_pd_gc --camera-id 0 --duration 20 --show-camera --output-dir results/hand_retargeting/runs
 `
 
@@ -64,7 +64,7 @@ CSV 记录字段：timestamp, frame_id, detected_hand, detection_confidence, wri
 
 ### 2. 分析一次 demo 运行
 
-`ash
+```bash
 python scripts/analyze_hand_retargeting_run.py --input results/hand_retargeting/runs/<run_id>/raw/hand_retargeting_run.csv
 `
 
@@ -84,7 +84,7 @@ python scripts/analyze_hand_retargeting_run.py --input results/hand_retargeting/
 
 ### 3. 参数扫描（基于同一段真实数据）
 
-`ash
+```bash
 python scripts/sweep_hand_retargeting_params.py --input results/hand_retargeting/runs/<run_id>/raw/hand_retargeting_run.csv
 `
 
@@ -94,18 +94,33 @@ python scripts/sweep_hand_retargeting_params.py --input results/hand_retargeting
 
 输出：param_sweep/raw/results.csv, param_sweep/figures/*.png, param_sweep/metrics/best_params.csv。
 
-### 4. 预实验：控制器参数粗调
+### 4. 预实验：任务空间控制器参数粗调
 
-`ash
+```bash
 python scripts/run_preliminary_control_tuning.py
 python scripts/plot_preliminary_control_tuning.py
 `
 
-使用确定性关节空间目标轨迹，在 4 组控制器配置下对比跟踪误差和力矩指标。确保 hand retargeting demo 开始前控制器参数基本合理。
+使用固定的末端目标轨迹（正弦运动），测试 5 组任务空间控制参数（soft / balanced / responsive / aggressive / torque_limited），选择综合评分最低的作为推荐参数。不依赖摄像头，仅用于确保 hand retargeting demo 开始前控制器参数基本合理。
+
+运行后查看推荐参数：
+```bash
+cat results/preliminary_control/metrics/best_control_params.csv
+```
+
+推荐参数可通过 --kp-pos, --kd-pos, --kp-ori, --kd-ori, --torque-limit, --max-target-step 传入真实 demo。
+
+| 模式 | kp_pos | kd_pos | kp_ori | kd_ori | torque_limit | Mean EE err [m] | Mean torque [Nm] | Score |
+|------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| soft | 80 | 16 | 20 | 4 | 40 | 0.051 | 23.0 | 0.781 |
+| balanced | 120 | 24 | 35 | 7 | 55 | 0.051 | 23.1 | 0.780 |
+| responsive | 160 | 32 | 45 | 9 | 70 | 0.051 | 23.3 | 0.781 |
+| aggressive | 220 | 40 | 60 | 12 | 90 | 0.051 | 23.7 | 0.782 |
+| torque_limited | 140 | 28 | 40 | 8 | 35 | 0.051 | 23.2 | 0.781 |
 
 ### 5. 自动化测试
 
-`ash
+```bash
 pytest -q -m "not viewer and not interactive"
 `
 
@@ -180,7 +195,7 @@ Step 3: Show parameter sweep results, explain how smoothing, scale, and workspac
 
 ## 环境配置
 
-`ash
+```bash
 pip install -r requirements.txt
 `
 

@@ -1,4 +1,9 @@
-﻿# scripts/run_panda_control_ablation.py
+﻿# scripts/run_preliminary_control_tuning.py
+"""Tune task-space control parameters using a fixed end-effector target trajectory.
+
+The goal is to find stable default control parameters for the real hand retargeting demo,
+by testing different gains, torque limits, and step-size targets on a known trajectory.
+"""
 
 import sys
 from pathlib import Path
@@ -8,64 +13,90 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 import argparse
 import csv
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
 
 import mujoco
 import numpy as np
+from scipy.spatial.transform import Rotation
 
 from core.dynamics_control import (
     PandaTorqueController,
     TorqueLimit,
+    get_body_pose,
+    rotation_error_rotvec,
     has_affine_position_actuators,
     has_position_actuators_and_neutralize,
 )
 
 # ---------------------------------------------------------------------------
+# Control mode definitions
+# ---------------------------------------------------------------------------
+@dataclass
+class ControlConfig:
+    mode: str
+    kp_pos: float
+    kd_pos: float
+    kp_ori: float
+    kd_ori: float
+    torque_limit_val: float
+    max_target_step: float
+
+
+CONFIGS: List[ControlConfig] = [
+    ControlConfig("soft",          80,  16, 20, 4, 40, 0.025),
+    ControlConfig("balanced",     120,  24, 35, 7, 55, 0.035),
+    ControlConfig("responsive",   160,  32, 45, 9, 70, 0.045),
+    ControlConfig("aggressive",   220,  40, 60, 12, 90, 0.060),
+    ControlConfig("torque_limited", 140, 28, 40, 8, 35, 0.035),
+]
+
+# ---------------------------------------------------------------------------
 # Target trajectory
 # ---------------------------------------------------------------------------
-Q0 = np.array([0.0, -0.7, 0.0, -2.2, 0.0, 1.6, 0.8], dtype=float)
-Q_STEP = Q0 + np.array([0.20, -0.15, 0.15, -0.10, 0.10, -0.10, 0.08], dtype=float)
-
-DEFAULT_TORQUE_LIMIT = TorqueLimit(
-    lower=-np.array([87, 87, 87, 87, 12, 12, 12], dtype=float),
-    upper=np.array([87, 87, 87, 87, 12, 12, 12], dtype=float),
-)
-
-STRICT_TORQUE_LIMIT = TorqueLimit(
-    lower=-np.array([10, 10, 10, 10, 3, 3, 3], dtype=float),
-    upper=np.array([10, 10, 10, 10, 3, 3, 3], dtype=float),
-)
-
-DEFAULT_KP = np.array([80, 80, 70, 60, 30, 25, 20], dtype=float)
-LOW_KP = np.array([40, 40, 35, 30, 15, 12, 10], dtype=float)
-DEFAULT_KD = np.array([14, 14, 12, 10, 6, 5, 4], dtype=float)
-LOW_KD = np.array([7, 7, 6, 5, 3, 2.5, 2], dtype=float)
+Q_HOME = np.array([0.0, -0.7, 0.0, -2.2, 0.0, 1.6, 0.8], dtype=float)
 
 
-def target_trajectory(t: float) -> np.ndarray:
-    """Multi-phase joint-space target trajectory.
+def make_target_pos(initial: np.ndarray, t: float) -> np.ndarray:
+    """Return end-effector target position at time t."""
+    return initial + np.array([
+        0.02 * np.sin(0.5 * 2.0 * np.pi * t),
+        0.06 * np.sin(0.8 * 2.0 * np.pi * t),
+        0.04 * np.sin(0.6 * 2.0 * np.pi * t),
+    ])
 
-    - t < 0.5: hold at Q0 (initial settling)
-    - 0.5 <= t < 1.0: smooth cubic transition from Q0 to Q_STEP
-    - t >= 1.0: hold Q_STEP with a small sinusoidal modulation
-    """
-    if t < 0.5:
-        return Q0.copy()
-    elif t < 1.0:
-        s = (t - 0.5) / 0.5  # 0 -> 1
-        s2 = s * s
-        s3 = s2 * s
-        smooth = 3.0 * s2 - 2.0 * s3  # Hermite basis
-        return Q0 + smooth * (Q_STEP - Q0)
-    else:
-        # Small sinusoidal modulation around Q_STEP
-        delta = 0.03 * np.sin(2.0 * np.pi * 0.3 * (t - 1.0))
-        return Q_STEP + np.full(7, delta)
+
+RAW_FIELDS = [
+    "timestamp", "mode",
+    "kp_pos", "kd_pos", "kp_ori", "kd_ori", "torque_limit", "max_target_step",
+    "target_ee_pos_x", "target_ee_pos_y", "target_ee_pos_z",
+    "actual_ee_pos_x", "actual_ee_pos_y", "actual_ee_pos_z",
+    "ee_position_error",
+    "target_quat_w", "target_quat_x", "target_quat_y", "target_quat_z",
+    "actual_quat_w", "actual_quat_x", "actual_quat_y", "actual_quat_z",
+    "ee_orientation_error",
+    "torque_norm", "max_abs_torque",
+]
+
+METRICS_FIELDS = [
+    "mode", "kp_pos", "kd_pos", "kp_ori", "kd_ori",
+    "torque_limit", "max_target_step",
+    "mean_ee_position_error", "final_ee_position_error", "max_ee_position_error",
+    "mean_torque_norm", "max_torque_norm", "torque_smoothness",
+    "diverged", "score",
+]
+
+BEST_FIELDS = [
+    "mode", "kp_pos", "kd_pos", "kp_ori", "kd_ori",
+    "torque_limit", "max_target_step",
+    "score", "mean_ee_position_error", "max_ee_position_error",
+    "mean_torque_norm", "max_torque_norm", "torque_smoothness",
+]
 
 
 def reset_robot(model, data):
-    data.qpos[:7] = Q0
+    data.qpos[:7] = Q_HOME
     data.qvel[:7] = 0.0
     data.qacc[:7] = 0.0
     if model.nu > 0:
@@ -74,268 +105,253 @@ def reset_robot(model, data):
     mujoco.mj_forward(model, data)
 
 
-def run_trial(
-    model_path: str,
-    mode_name: str,
-    duration: float,
-    **kwargs,
-) -> List[Dict]:
-    """Run a single control trial.
-
-    Extra kwargs are unpacked into the controller call (e.g. kp, kd,
-    gravity_comp, torque_limit).
-    """
+def run_trial(config: ControlConfig, model_path: str, duration: float) -> List[Dict]:
+    """Run a single control trial with the given config and return per-step rows."""
     model = mujoco.MjModel.from_xml_path(model_path)
     data = mujoco.MjData(model)
-
-    if model.nv < 7:
-        raise RuntimeError(f"Expected >=7 DoF, got nv={model.nv}")
-
     reset_robot(model, data)
 
-    torque_limit = kwargs.get("torque_limit", DEFAULT_TORQUE_LIMIT)
+    torque_limit = TorqueLimit(
+        lower=-np.full(7, config.torque_limit_val, dtype=float),
+        upper=np.full(7, config.torque_limit_val, dtype=float),
+    )
     controller = PandaTorqueController(
-        model=model,
-        data=data,
-        dof=7,
-        body_name="hand",
+        model=model, data=data, dof=7, body_name="hand",
         torque_limit=torque_limit,
     )
 
+    # Get initial end-effector pose
+    initial_pos, initial_rot = get_body_pose(model, data, "hand")
+    target_rot = initial_rot.copy()
+
     dt = model.opt.timestep
     steps = int(duration / dt)
-
-    has_position_actuator = has_affine_position_actuators(model, 7)
-    if has_position_actuator:
-        print(f"  [{mode_name}] neutralizing position actuators (qfrc_applied mode)")
+    has_pa = has_affine_position_actuators(model, 7)
+    prev_tau = None
 
     rows = []
     tau_prev = None
 
     for k in range(steps):
         t = k * dt
-        q_des = target_trajectory(t)
+        target_pos = make_target_pos(initial_pos, t)
 
-        # Determine control mode -------------------------------------------------
-        control_type = kwargs.get("control_type", "joint_pd")
+        tau = controller.task_space_pd(
+            target_pos=target_pos,
+            target_rot=target_rot,
+            kp_pos=config.kp_pos,
+            kd_pos=config.kd_pos,
+            kp_rot=config.kp_ori,
+            kd_rot=config.kd_ori,
+            gravity_comp=True,
+        )
 
-        if control_type == "joint_pd":
-            kp = kwargs.get("kp", DEFAULT_KP)
-            kd = kwargs.get("kd", DEFAULT_KD)
-            gravity_comp = kwargs.get("gravity_comp", True)
-            tau = controller.joint_pd(
-                q_des=q_des, kp=kp, kd=kd, gravity_comp=gravity_comp,
-            )
-
-        elif control_type == "computed_torque":
-            kp = kwargs.get("kp", DEFAULT_KP)
-            kd = kwargs.get("kd", DEFAULT_KD)
-            tau = controller.computed_torque(
-                q_des=q_des, kp=kp, kd=kd,
-            )
-
-        elif control_type == "task_space_pd":
-            # For task-space we need a body target; approximate from FK at q_des
-            data.qpos[:7] = q_des
-            mujoco.mj_forward(model, data)
-            body_id = model.body("hand").id
-            target_pos = data.xpos[body_id].copy()
-            target_rot = data.xmat[body_id].reshape(3, 3).copy()
-            # restore actual state
-            data.qpos[:7] = controller.q()
-            mujoco.mj_forward(model, data)
-
-            tau = controller.task_space_pd(
-                target_pos=target_pos,
-                target_rot=target_rot,
-                kp_pos=kwargs.get("kp_pos", 250.0),
-                kd_pos=kwargs.get("kd_pos", 30.0),
-                kp_rot=kwargs.get("kp_rot", 40.0),
-                kd_rot=kwargs.get("kd_rot", 6.0),
-                gravity_comp=kwargs.get("gravity_comp", True),
-            )
-
-        else:
-            raise ValueError(f"Unknown control_type: {control_type}")
-
-        # Apply and step ---------------------------------------------------------
         controller.apply_torque(tau, prefer_ctrl=False)
-        if has_position_actuator:
+        if has_pa:
             has_position_actuators_and_neutralize(model, data, 7)
         mujoco.mj_step(model, data)
 
-        q_cur = data.qpos[:7].copy()
-        qd_cur = data.qvel[:7].copy()
-        err = q_des - q_cur
+        actual_pos, actual_rot = get_body_pose(model, data, "hand")
+        pos_err = float(np.linalg.norm(target_pos - actual_pos))
+        rot_err = float(np.linalg.norm(rotation_error_rotvec(target_rot, actual_rot)))
+        tau_norm = float(np.linalg.norm(tau))
+        max_tau = float(np.max(np.abs(tau)))
 
-        # Torque smoothness: norm of tau difference from previous step
-        tau_smoothness_step = 0.0
+        target_quat = Rotation.from_matrix(target_rot).as_quat()
+        actual_quat = Rotation.from_matrix(actual_rot).as_quat()
+
+        # Smoothness: norm of torque difference from previous step
+        ts_step = 0.0
         if tau_prev is not None:
-            tau_smoothness_step = float(np.linalg.norm(tau - tau_prev))
+            ts_step = float(np.linalg.norm(tau - tau_prev))
         tau_prev = tau.copy()
 
         rows.append({
-            "t": float(t),
-            "mode": mode_name,
-            "err_norm": float(np.linalg.norm(err)),
-            "tau_norm": float(np.linalg.norm(tau)),
-            "tau_smoothness_step": tau_smoothness_step,
+            "timestamp": f"{t:.4f}",
+            "mode": config.mode,
+            "kp_pos": config.kp_pos,
+            "kd_pos": config.kd_pos,
+            "kp_ori": config.kp_ori,
+            "kd_ori": config.kd_ori,
+            "torque_limit": config.torque_limit_val,
+            "max_target_step": config.max_target_step,
+            "target_ee_pos_x": f"{target_pos[0]:.4f}",
+            "target_ee_pos_y": f"{target_pos[1]:.4f}",
+            "target_ee_pos_z": f"{target_pos[2]:.4f}",
+            "actual_ee_pos_x": f"{actual_pos[0]:.4f}",
+            "actual_ee_pos_y": f"{actual_pos[1]:.4f}",
+            "actual_ee_pos_z": f"{actual_pos[2]:.4f}",
+            "ee_position_error": f"{pos_err:.6f}",
+            "target_quat_w": f"{target_quat[3]:.6f}",
+            "target_quat_x": f"{target_quat[0]:.6f}",
+            "target_quat_y": f"{target_quat[1]:.6f}",
+            "target_quat_z": f"{target_quat[2]:.6f}",
+            "actual_quat_w": f"{actual_quat[3]:.6f}",
+            "actual_quat_x": f"{actual_quat[0]:.6f}",
+            "actual_quat_y": f"{actual_quat[1]:.6f}",
+            "actual_quat_z": f"{actual_quat[2]:.6f}",
+            "ee_orientation_error": f"{rot_err:.6f}",
+            "torque_norm": f"{tau_norm:.4f}",
+            "max_abs_torque": f"{max_tau:.4f}",
         })
-        for i in range(7):
-            rows[-1][f"q{i+1}"] = float(q_cur[i])
-            rows[-1][f"qd{i+1}"] = float(qd_cur[i])
-            rows[-1][f"tau{i+1}"] = float(tau[i])
 
     return rows
 
 
-def compute_metrics(rows: List[Dict]) -> Dict[str, float]:
+def compute_metrics(rows: List[Dict]) -> Dict:
     """Compute aggregate metrics from per-step records."""
-    err_norms = np.array([r["err_norm"] for r in rows])
-    tau_norms = np.array([r["tau_norm"] for r in rows])
-    tau_smooth_steps = np.array([r["tau_smoothness_step"] for r in rows])
+    errs = np.array([float(r["ee_position_error"]) for r in rows])
+    taus = np.array([float(r["torque_norm"]) for r in rows])
+
+    # Torque smoothness: mean of adjacent-step torque norm diffs
+    tau_diff = np.diff(taus)
+    smoothness = float(np.mean(np.abs(tau_diff))) if len(tau_diff) > 0 else 0.0
+
+    diverged = bool(
+        np.any(np.isnan(errs)) or np.any(np.isinf(errs)) or
+        np.any(np.isnan(taus)) or np.any(np.isinf(taus)) or
+        np.max(errs) > 0.5
+    )
 
     metrics = {
-        "mean_joint_error": float(np.mean(err_norms)),
-        "final_joint_error": float(err_norms[-1]),
-        "max_joint_error": float(np.max(err_norms)),
-        "rms_torque": float(np.sqrt(np.mean(tau_norms ** 2))),
-        "max_torque": float(np.max(tau_norms)),
-        "torque_smoothness": float(np.mean(tau_smooth_steps[tau_smooth_steps > 0])),
-        "overshoot": float(np.max(err_norms) - err_norms[-1]),
-        "diverged": float(1.0 if (np.any(np.isnan(err_norms)) or np.any(np.isinf(err_norms)) or np.any(np.isnan(tau_norms)) or np.max(err_norms) > 1.0 or np.max(tau_norms) > 100.0) else 0.0),
+        "mean_ee_position_error": float(np.mean(errs)),
+        "final_ee_position_error": float(errs[-1]),
+        "max_ee_position_error": float(np.max(errs)),
+        "mean_torque_norm": float(np.mean(taus)),
+        "max_torque_norm": float(np.max(taus)),
+        "torque_smoothness": smoothness,
+        "diverged": diverged,
     }
+
+    # Score: lower is better
+    norm_err = metrics["mean_ee_position_error"] / 0.1  # normalize to ~1 for 10cm error
+    norm_max = metrics["max_ee_position_error"] / 0.2
+    norm_tau = metrics["mean_torque_norm"] / 50.0
+    norm_smooth = metrics["torque_smoothness"] / 10.0
+    div_penalty = 100.0 if diverged else 0.0
+
+    score = (1.0 * norm_err + 0.5 * norm_max + 0.2 * norm_tau + 0.2 * norm_smooth + div_penalty)
+    metrics["score"] = score
+
     return metrics
 
 
 def write_csv(rows, path):
     path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = list(rows[0].keys())
-    with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
 
 
 def write_metrics_csv(all_metrics: Dict[str, Dict], path):
     path.parent.mkdir(parents=True, exist_ok=True)
-    ordered_metrics = [
-        "mean_joint_error", "final_joint_error", "max_joint_error",
-        "rms_torque", "max_torque", "torque_smoothness",
-        "overshoot", "diverged",
-    ]
-    with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["mode"] + ordered_metrics)
-        for mode, m in all_metrics.items():
-            writer.writerow([mode] + [m.get(k, float("nan")) for k in ordered_metrics])
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(METRICS_FIELDS)
+        for cfg in CONFIGS:
+            m = all_metrics.get(cfg.mode, {})
+            w.writerow([cfg.mode, cfg.kp_pos, cfg.kd_pos, cfg.kp_ori, cfg.kd_ori,
+                       cfg.torque_limit_val, cfg.max_target_step] +
+                      [m.get(k, "") for k in METRICS_FIELDS[7:]])
 
 
-DEFINITIONS = [
-    {
-        "mode": "pd_only",
-        "control_type": "joint_pd",
-        "gravity_comp": False,
-        "kp": DEFAULT_KP,
-        "kd": DEFAULT_KD,
-        "torque_limit": DEFAULT_TORQUE_LIMIT,
-    },
-    {
-        "mode": "pd_gc",
-        "control_type": "joint_pd",
-        "gravity_comp": True,
-        "kp": DEFAULT_KP,
-        "kd": DEFAULT_KD,
-        "torque_limit": DEFAULT_TORQUE_LIMIT,
-    },
-    {
-        "mode": "pd_gc_low_gain",
-        "control_type": "joint_pd",
-        "gravity_comp": True,
-        "kp": LOW_KP,
-        "kd": LOW_KD,
-        "torque_limit": DEFAULT_TORQUE_LIMIT,
-    },
-    {
-        "mode": "pd_gc_torque_clipped",
-        "control_type": "joint_pd",
-        "gravity_comp": True,
-        "kp": DEFAULT_KP,
-        "kd": DEFAULT_KD,
-        "torque_limit": STRICT_TORQUE_LIMIT,
-    },
-    {
-        "mode": "computed_torque",
-        "control_type": "computed_torque",
-        "kp": DEFAULT_KP,
-        "kd": DEFAULT_KD,
-        "torque_limit": DEFAULT_TORQUE_LIMIT,
-    },
-    {
-        "mode": "task_space_pd_gc",
-        "control_type": "task_space_pd",
-        "gravity_comp": True,
-        "kp_pos": 250.0,
-        "kd_pos": 30.0,
-        "kp_rot": 40.0,
-        "kd_rot": 6.0,
-        "torque_limit": DEFAULT_TORQUE_LIMIT,
-    },
-]
+def write_best_csv(all_metrics: Dict[str, Dict], path):
+    """Write best parameters (lowest score among non-diverged) to CSV."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    valid = [(cfg.mode, all_metrics.get(cfg.mode, {})) for cfg in CONFIGS
+             if not all_metrics.get(cfg.mode, {}).get("diverged", True)]
+
+    if not valid:
+        print("WARNING: all modes diverged, no best params found.")
+        return
+
+    best_mode, best_m = min(valid, key=lambda x: x[1].get("score", float("inf")))
+
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=BEST_FIELDS)
+        w.writeheader()
+        w.writerow({
+            "mode": best_mode,
+            "kp_pos": next(c.kp_pos for c in CONFIGS if c.mode == best_mode),
+            "kd_pos": next(c.kd_pos for c in CONFIGS if c.mode == best_mode),
+            "kp_ori": next(c.kp_ori for c in CONFIGS if c.mode == best_mode),
+            "kd_ori": next(c.kd_ori for c in CONFIGS if c.mode == best_mode),
+            "torque_limit": next(c.torque_limit_val for c in CONFIGS if c.mode == best_mode),
+            "max_target_step": next(c.max_target_step for c in CONFIGS if c.mode == best_mode),
+            "score": best_m.get("score", ""),
+            "mean_ee_position_error": best_m.get("mean_ee_position_error", ""),
+            "max_ee_position_error": best_m.get("max_ee_position_error", ""),
+            "mean_torque_norm": best_m.get("mean_torque_norm", ""),
+            "max_torque_norm": best_m.get("max_torque_norm", ""),
+            "torque_smoothness": best_m.get("torque_smoothness", ""),
+        })
+
+    print(f"\nBest preliminary control parameters:")
+    bc = next(c for c in CONFIGS if c.mode == best_mode)
+    print(f"  mode = {best_mode}")
+    print(f"  kp_pos = {bc.kp_pos}")
+    print(f"  kd_pos = {bc.kd_pos}")
+    print(f"  kp_ori = {bc.kp_ori}")
+    print(f"  kd_ori = {bc.kd_ori}")
+    print(f"  torque_limit = {bc.torque_limit_val}")
+    print(f"  max_target_step = {bc.max_target_step}")
+    print(f"  score = {best_m.get('score', 'N/A'):.4f}")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run Panda control ablation study")
+        description="Preliminary control tuning - task-space parameters for hand retargeting")
     parser.add_argument("--model", type=str, default="models/panda/panda.xml")
-    parser.add_argument("--duration", type=float, default=5.0,
-                        help="Simulation duration per trial (seconds)")
-    parser.add_argument("--out-dir", type=str,
-                        default="results/preliminary_control")
+    parser.add_argument("--duration", type=float, default=8.0,
+                        help="Trajectory duration in seconds")
+    parser.add_argument("--out-dir", type=str, default="results/preliminary_control")
     args = parser.parse_args()
 
     out_dir = Path(args.out_dir)
     raw_dir = out_dir / "raw"
     metrics_dir = out_dir / "metrics"
 
-    print("=" * 60)
-    print("Preliminary Control Tuning")
+    print(f"\nPreliminary Control Tuning")
     print(f"  model:    {args.model}")
-    print(f"  duration: {args.duration} s per trial")
-    print(f"  modes:    {[d['mode'] for d in DEFINITIONS]}")
-    print("=" * 60)
+    print(f"  duration: {args.duration}s per mode")
+    print(f"  modes:    {[c.mode for c in CONFIGS]}")
+    print("=" * 50)
 
     all_metrics = {}
 
-    for cfg in DEFINITIONS:
-        mode = cfg["mode"]
-        print(f"\n--- Running: {mode} ---")
-        rows = run_trial(
-            model_path=args.model,
-            mode_name=mode,
-            duration=args.duration,
-            **cfg,
-        )
+    for cfg in CONFIGS:
+        print(f"\n  Running: {cfg.mode}  "
+              f"kp_pos={cfg.kp_pos} kd_pos={cfg.kd_pos} "
+              f"kp_ori={cfg.kp_ori} kd_ori={cfg.kd_ori} "
+              f"limit={cfg.torque_limit_val}")
+        rows = run_trial(cfg, args.model, args.duration)
 
-        # Save raw per-step data
-        csv_path = raw_dir / f"ablation_{mode}.csv"
-        write_csv(rows, csv_path)
-        print(f"  saved: {csv_path}")
+        raw_path = raw_dir / f"preliminary_control_{cfg.mode}.csv"
+        write_csv(rows, raw_path)
+        print(f"    raw: {raw_path}")
 
-        # Compute metrics
         metrics = compute_metrics(rows)
-        all_metrics[mode] = metrics
-        print(f"  mean_joint_error: {metrics['mean_joint_error']:.4f} rad")
-        print(f"  final_joint_error: {metrics['final_joint_error']:.4f} rad")
-        print(f"  rms_torque: {metrics['rms_torque']:.2f} Nm")
-        print(f"  torque_smoothness: {metrics['torque_smoothness']:.4f}")
+        all_metrics[cfg.mode] = metrics
+        print(f"    mean_err={metrics['mean_ee_position_error']:.4f}m  "
+              f"mean_tau={metrics['mean_torque_norm']:.1f}Nm  "
+              f"smooth={metrics['torque_smoothness']:.4f}  "
+              f"score={metrics['score']:.4f}  "
+              f"diverged={metrics['diverged']}")
 
-    # Save aggregate metrics
-    metrics_path = metrics_dir / "control_ablation_metrics.csv"
+    # Save metrics CSV
+    metrics_path = metrics_dir / "preliminary_control_metrics.csv"
     write_metrics_csv(all_metrics, metrics_path)
-    print(f"\nAggregate metrics saved: {metrics_path}")
+    print(f"\n  Metrics: {metrics_path}")
 
-    print("\nDone. Next: python scripts/plot_preliminary_control_tuning.py")
+    # Save best params
+    best_path = metrics_dir / "best_control_params.csv"
+    write_best_csv(all_metrics, best_path)
+    print(f"  Best:    {best_path}")
+
+    print("\n  Next: python scripts/plot_preliminary_control_tuning.py")
 
 
 if __name__ == "__main__":
