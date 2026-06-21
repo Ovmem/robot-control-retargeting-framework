@@ -38,6 +38,7 @@ from retargeting.hand_to_panda import (
 )  # noqa: E402
 from vision.hand_tracker import MediaPipeHandTracker  # noqa: E402
 
+CAMERA_WINDOW_NAME = "Hand Retargeting Camera"
 
 CSV_FIELDS = [
     "timestamp",
@@ -107,7 +108,6 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument("--camera-id", type=int, default=0)
     p.add_argument("--duration", type=float, default=20.0)
     p.add_argument("--output-dir", type=str, default="results/hand_retargeting/runs")
-    p.add_argument("--show-camera", action="store_true", help="Show one OpenCV camera window.")
     p.add_argument("--no-camera-window", action="store_true", help="Disable camera window.")
     p.add_argument("--sim-substeps", type=int, default=20)
 
@@ -277,7 +277,7 @@ def draw_camera_overlay(
 def main() -> None:
     args = make_parser().parse_args()
 
-    show_camera = args.show_camera and not args.no_camera_window
+    show_camera = not args.no_camera_window
 
     # ------------------------------------------------------------------
     # Output
@@ -380,6 +380,27 @@ def main() -> None:
             csv_fh.close()
         raise RuntimeError(f"Camera is not available. Please check --camera-id. {exc}") from exc
 
+    if show_camera:
+        cv2.namedWindow(CAMERA_WINDOW_NAME, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(CAMERA_WINDOW_NAME, 960, 720)
+        cv2.moveWindow(CAMERA_WINDOW_NAME, 40, 40)
+
+        blank = np.zeros((480, 640, 3), dtype=np.uint8)
+        cv2.putText(
+            blank,
+            "Waiting for camera frames...",
+            (40, 240),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.9,
+            (0, 255, 0),
+            2,
+        )
+        cv2.imshow(CAMERA_WINDOW_NAME, blank)
+        cv2.waitKey(1)
+
+        print(f"OpenCV camera window initialized: {CAMERA_WINDOW_NAME}")
+
+
     target_pos = base_pos.copy()
     target_rot = base_rot.copy()
     target_gripper = 0.04
@@ -400,30 +421,6 @@ def main() -> None:
                     break
 
                 obs = tracker.read()
-
-                # --- Camera preview window ---
-                no_camera_window = getattr(args, "no_camera_window", False)
-
-                if not no_camera_window:
-                    frame_vis = obs.frame_bgr.copy()
-
-                    status_text = f"detected={int(obs.detected)} score={obs.score:.2f}"
-                    cv2.putText(
-                        frame_vis,
-                        status_text,
-                        (20, 40),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1.0,
-                        (0, 255, 0) if obs.detected else (0, 0, 255),
-                        2,
-                    )
-
-                    cv2.imshow("Camera - MediaPipe Hand Tracking", frame_vis)
-
-                    key = cv2.waitKey(1) & 0xFF
-                    if key == ord("q") or key == 27:
-                        print("Camera window closed by user.")
-                        break
 
                 detected = obs.detected
                 score = obs.score if detected else 0.0
@@ -517,10 +514,22 @@ def main() -> None:
                         target_gripper=target_gripper,
                         tau_norm=tau_norm,
                     )
-                    cv2.imshow("Hand Retargeting Camera", frame)
+
+                    cv2.imshow(CAMERA_WINDOW_NAME, frame)
+
+                    try:
+                        cv2.setWindowProperty(
+                            CAMERA_WINDOW_NAME,
+                            cv2.WND_PROP_TOPMOST,
+                            1,
+                        )
+                    except Exception:
+                        pass
+
                     key = cv2.waitKey(1) & 0xFF
 
-                    if key == 27:
+                    if key == 27 or key == ord("q"):
+                        print("Camera window closed by user.")
                         break
 
                     if key == ord("r"):
@@ -528,6 +537,7 @@ def main() -> None:
                         target_pos = base_pos.copy()
                         target_rot = base_rot.copy()
                         print("Reset retargeter baseline.")
+
 
                 viewer.sync()
 
@@ -543,9 +553,6 @@ def main() -> None:
                 )
 
                 frame_id += 1
-
-                tracker.close()
-                cv2.destroyAllWindows()
 
     finally:
         tracker.close()
