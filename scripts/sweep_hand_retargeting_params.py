@@ -117,19 +117,19 @@ def compute_score(m):
 def print_summary(label, m):
     """Print one run metrics summary."""
     print(f"  Label: {label}")
-    print(f"    Frames: {m.get("num_frames", "?")}")
-    print(f"    Duration: {m.get("duration_sec", "?"):.2f}s")
-    print(f"    Detection rate: {m.get("detection_rate", "?")}")
-    print(f"    Mean EE error: {m.get("mean_ee_position_error", "?"):.4f}m")
-    print(f"    Max EE error: {m.get("max_ee_position_error", "?"):.4f}m")
-    print(f"    Final EE error: {m.get("final_ee_position_error", "?"):.4f}m")
-    print(f"    Target smoothness: {m.get("target_position_smoothness", "?"):.6f}m")
-    print(f"    Jump count: {m.get("target_position_jump_count", "?")}")
-    print(f"    Gripper smoothness: {m.get("gripper_command_smoothness", "?"):.6f}")
-    print(f"    Mean torque norm: {m.get("mean_torque_norm", "?"):.2f}Nm")
-    print(f"    Max torque norm: {m.get("max_torque_norm", "?"):.2f}Nm")
-    print(f"    Workspace clip rate: {m.get("workspace_clip_rate", "?")}")
-    print(f"    Score (lower better): {m.get("score", "?")}")
+    print(f"    Frames: {m.get('num_frames', '?')}")
+    print(f"    Duration: {m.get('duration_sec', '?'):.2f}s")
+    print(f"    Detection rate: {m.get('detection_rate', '?')}")
+    print(f"    Mean EE error: {m.get('mean_ee_position_error', '?'):.4f}m")
+    print(f"    Max EE error: {m.get('max_ee_position_error', '?'):.4f}m")
+    print(f"    Final EE error: {m.get('final_ee_position_error', '?'):.4f}m")
+    print(f"    Target smoothness: {m.get('target_position_smoothness', '?'):.6f}m")
+    print(f"    Jump count: {m.get('target_position_jump_count', '?')}")
+    print(f"    Gripper smoothness: {m.get('gripper_command_smoothness', '?'):.6f}")
+    print(f"    Mean torque norm: {m.get('mean_torque_norm', '?'):.2f}Nm")
+    print(f"    Max torque norm: {m.get('max_torque_norm', '?'):.2f}Nm")
+    print(f"    Workspace clip rate: {m.get('workspace_clip_rate', '?')}")
+    print(f"    Score (lower better): {m.get('score', '?')}")
     print()
 
 
@@ -179,7 +179,7 @@ def plot_comparison(all_metrics, labels, out_dir):
 def main():
     parser = argparse.ArgumentParser(description="Compare recorded hand retargeting runs")
     parser.add_argument("--input", type=str, default=None,
-                        help="Single CSV path")
+                        help="Single CSV path (auto-detect latest run if omitted)")
     parser.add_argument("--inputs", type=str, nargs="+", default=None,
                         help="Multiple CSV paths with labels: path:label path:label ...")
     parser.add_argument("--output-dir", type=str, default=None,
@@ -187,7 +187,17 @@ def main():
     args = parser.parse_args()
 
     if args.input is None and args.inputs is None:
-        print("ERROR: provide --input or --inputs")
+        # Auto-detect latest run
+        runs_dir = Path(__file__).resolve().parents[1] / "results/hand_retargeting/runs"
+        if runs_dir.exists():
+            all_runs = sorted([d for d in runs_dir.iterdir() if d.is_dir()])
+            if all_runs:
+                latest_csv = all_runs[-1] / "raw" / "hand_retargeting_run.csv"
+                if latest_csv.exists():
+                    args.input = str(latest_csv)
+                    print(f"Auto-detected: {args.input}")
+    if args.input is None and args.inputs is None:
+        print("ERROR: no --input or --inputs specified and no run CSV found")
         return
 
     if args.input is not None:
@@ -269,7 +279,7 @@ def main():
         w.writerow(["label", labels[best_idx]])
         for k in REQUIRED_METRICS:
             w.writerow([k, m.get(k, "")])
-    print(f"Best run: {labels[best_idx]} (score={all_metrics[best_idx].get("score", ""):.4f})")
+    print(f"Best run: {labels[best_idx]} (score={all_metrics[best_idx].get('score', ''):.4f})")
     print(f"Saved: {best_path}")
 
     # Generate figures if multiple runs

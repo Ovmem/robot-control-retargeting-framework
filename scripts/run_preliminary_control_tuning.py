@@ -27,7 +27,6 @@ from core.dynamics_control import (
     get_body_pose,
     rotation_error_rotvec,
     has_affine_position_actuators,
-    has_position_actuators_and_neutralize,
 )
 
 # ---------------------------------------------------------------------------
@@ -126,7 +125,6 @@ def run_trial(config: ControlConfig, model_path: str, duration: float) -> List[D
 
     dt = model.opt.timestep
     steps = int(duration / dt)
-    has_pa = has_affine_position_actuators(model, 7)
     prev_tau = None
 
     rows = []
@@ -146,9 +144,7 @@ def run_trial(config: ControlConfig, model_path: str, duration: float) -> List[D
             gravity_comp=True,
         )
 
-        controller.apply_torque(tau, prefer_ctrl=False)
-        if has_pa:
-            has_position_actuators_and_neutralize(model, data, 7)
+        controller.apply_torque(tau, prefer_ctrl=True)
         mujoco.mj_step(model, data)
 
         actual_pos, actual_rot = get_body_pose(model, data, "hand")

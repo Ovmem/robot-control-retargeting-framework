@@ -49,10 +49,10 @@ def load_run(path: str):
 def compute_metrics(cols: dict, dt_avg: float) -> dict:
     """Compute metrics from loaded run data."""
     m = {}
-    m["num_frames"] = int(n)
-    m["duration_sec"] = float(n * dt_avg) if len(detected) > 0 else 0.0
     detected = cols.get("detected_hand", np.array([]))
     n = len(detected) if len(detected) > 0 else 1
+    m["num_frames"] = int(n)
+    m["duration_sec"] = float(n * dt_avg) if len(detected) > 0 else 0.0
 
     # 1. Detection rate
     m["detection_rate"] = float(np.mean(detected)) if len(detected) > 0 else np.nan
@@ -248,11 +248,24 @@ def save_metrics(metrics: dict, out_dir):
 def main():
     parser = argparse.ArgumentParser(
         description="Analyze hand retargeting run and generate figures + metrics")
-    parser.add_argument("--input", type=str, required=True,
+    parser.add_argument("--input", type=str, default=None,
                         help="Path to hand_retargeting_run.csv")
     parser.add_argument("--output-dir", type=str, default=None,
                         help="Output directory (defaults to run directory)")
     args = parser.parse_args()
+    # Auto-detect latest run if --input not specified
+    if args.input is None:
+        runs_dir = Path(__file__).resolve().parents[1] / "results/hand_retargeting/runs"
+        if runs_dir.exists():
+            all_runs = sorted([d for d in runs_dir.iterdir() if d.is_dir()])
+            if all_runs:
+                latest_csv = all_runs[-1] / "raw" / "hand_retargeting_run.csv"
+                if latest_csv.exists():
+                    args.input = str(latest_csv)
+                    print(f"Auto-detected: {args.input}")
+    if args.input is None:
+        print("ERROR: no --input specified and no run CSV found in results/hand_retargeting/runs/")
+        return
 
     csv_path = Path(args.input)
     if not csv_path.exists():
