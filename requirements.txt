@@ -5,3 +5,8 @@ matplotlib
 opencv-python
 mediapipe
 pytest
+gymnasium
+stable-baselines3
+torch
+pyyaml
+tensorboard

@@ -1,0 +1,41 @@
+env:
+  model_path: models/panda/panda_torque.xml
+  body_name: hand
+  max_episode_steps: 160
+  control_decimation: 10
+  action_scale: 0.035
+  joint_target_clip: 0.08
+  success_threshold: 0.035
+  success_hold_steps: 6
+  reset_noise: 0.05
+  workspace_radius: 0.16
+  workspace_z_min: 0.22
+  workspace_z_max: 0.78
+  q_home: [0.0, -0.7, 0.0, -2.2, 0.0, 1.6, 0.8]
+  kp: [140.0, 140.0, 120.0, 110.0, 45.0, 35.0, 25.0]
+  kd: [18.0, 18.0, 16.0, 14.0, 6.0, 5.0, 4.0]
+  torque_limit: [87.0, 87.0, 87.0, 87.0, 12.0, 12.0, 12.0]
+  q_limit_margin: 0.05
+  terminate_on_joint_limit: true
+  debug: false
+reward:
+  w_position: 2.0
+  k_position: 35.0
+  w_success: 8.0
+  w_action: 0.01
+  w_action_delta: 0.005
+  w_torque: 0.00002
+  w_joint_limit: 0.05
+ppo:
+  policy: MlpPolicy
+  learning_rate: 0.0003
+  n_steps: 512
+  batch_size: 64
+  n_epochs: 8
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.0
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  verbose: 1

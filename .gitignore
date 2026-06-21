@@ -6,3 +6,8 @@ results/hand_retargeting/runs/*/
 results/preliminary_control/raw/*.csv
 results/preliminary_control/figures/*.png
 results/preliminary_control/metrics/*.csv
+results/rl_tracking/runs/*/checkpoints/*.zip
+results/rl_tracking/runs/*/checkpoints/**/*.zip
+results/rl_tracking/runs/*/logs/tb/
+results/rl_tracking/runs/*/logs/**/*.tfevents.*
+results/rl_tracking/runs/*/videos/*

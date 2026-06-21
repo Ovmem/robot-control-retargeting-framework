@@ -24,6 +24,10 @@ MuJoCo 中的任务空间控制、CSV 数据记录、运行结果分析和参数
 
 请在仓库根目录运行。
 
+### RL Tracking Extension
+
+This repository includes first-stage code for a `Task-Conditioned Panda Goal Tracking with PPO` extension for MuJoCo Panda end-effector position reaching. It uses a Gymnasium environment, Stable-Baselines3 PPO, and the existing PD + gravity compensation torque-control path. Training results must be generated locally after installing the RL dependencies; no convergence or benchmark result is claimed here. See `docs/rl_goal_tracking.md` for installation, smoke-test, training, and evaluation commands. This extension is scoped to simulated end-effector position goals and does not replace the camera hand-retargeting demo.
+
 ### 1. 运行主 demo（需摄像头）
 
 ```

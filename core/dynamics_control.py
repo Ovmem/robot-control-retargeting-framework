@@ -225,6 +225,24 @@ class PandaTorqueController:
 
         return self.clip_tau(tau)
 
+    def joint_pd_gravity_comp(
+        self,
+        q_des: np.ndarray,
+        kp: float | np.ndarray = 120.0,
+        kd: float | np.ndarray = 12.0,
+        gravity_comp: bool = True,
+    ) -> np.ndarray:
+        """Joint-space PD torque with optional MuJoCo gravity compensation."""
+        q_des = np.asarray(q_des, dtype=float)
+        kp_arr = np.asarray(kp, dtype=float)
+        kd_arr = np.asarray(kd, dtype=float)
+
+        tau = kp_arr * (q_des[: self.dof] - self.q()) - kd_arr * self.qd()
+        if gravity_comp:
+            tau = tau + self.gravity_comp_torque()
+
+        return self.clip_tau(tau)
+
     def apply_torque(self, tau: np.ndarray, prefer_ctrl: bool = True) -> np.ndarray:
         """
         Apply torque to MuJoCo.
