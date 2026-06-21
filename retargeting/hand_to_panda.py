@@ -94,7 +94,7 @@ class HandToPandaRetargetingConfig:
 
     robot_origin: tuple[float, float, float] = (0.45, 0.0, 0.45)
 
-    position_scale_xy: float = 2.2
+    position_scale_xy: float = 1.4
     vertical_scale_ratio: float = 0.8
 
     depth_scale: float = 0.0
@@ -105,14 +105,14 @@ class HandToPandaRetargetingConfig:
     pinch_closed_ratio: float = 0.35
     pinch_open_ratio: float = 1.20
 
-    filter_alpha: float = 0.18
+    filter_alpha: float = 0.65
 
-    workspace_x_delta: tuple[float, float] = (-0.02, 0.02)
+    workspace_x_delta: tuple[float, float] = (-0.25, 0.25)
     workspace_y_delta: tuple[float, float] = (-0.25, 0.25)
     workspace_z_delta: tuple[float, float] = (-0.12, 0.14)
 
     enable_orientation_mapping: bool = True
-    enable_gripper_mapping: bool = True
+    enable_gripper_mapping: bool = false
     orientation_euler_xyz_deg: tuple[float, float, float] = (180.0, 0.0, 90.0)
 
     def to_dict(self) -> dict[str, Any]:

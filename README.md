@@ -43,11 +43,9 @@ python scripts/analyze_hand_retargeting_run.py --input results/hand_retargeting/
 ### 3. 对比多次运行结果
 
 ```
-python scripts/sweep_hand_retargeting_params.py --inputs \
-  results/hand_retargeting/runs/run_a/raw/hand_retargeting_run.csv:default \
-  results/hand_retargeting/runs/run_b/raw/hand_retargeting_run.csv:low_alpha
+python scripts/sweep_hand_retargeting_params.py
 ```
-
+默认读取 results/hand_retargeting/runs/ 下最新一次 hand_retargeting_run.csv；如需指定某次运行，可使用 --input。
 对比指标和图像输出至 `results/hand_retargeting/comparison/`。
 
 ### 4. 无摄像头控制器粗调
