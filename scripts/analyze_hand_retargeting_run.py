@@ -1,4 +1,4 @@
-﻿# scripts/analyze_hand_retargeting_run.py
+# scripts/analyze_hand_retargeting_run.py
 """Analyze a recorded hand retargeting run and generate figures + metrics."""
 
 import sys
@@ -49,6 +49,8 @@ def load_run(path: str):
 def compute_metrics(cols: dict, dt_avg: float) -> dict:
     """Compute metrics from loaded run data."""
     m = {}
+    m["num_frames"] = int(n)
+    m["duration_sec"] = float(n * dt_avg) if len(detected) > 0 else 0.0
     detected = cols.get("detected_hand", np.array([]))
     n = len(detected) if len(detected) > 0 else 1
 
@@ -60,8 +62,9 @@ def compute_metrics(cols: dict, dt_avg: float) -> dict:
     if len(ee_err) > 0:
         m["mean_ee_position_error"] = float(np.nanmean(ee_err))
         m["max_ee_position_error"] = float(np.nanmax(ee_err))
+        m["final_ee_position_error"] = float(ee_err[-1]) if len(ee_err) > 0 else np.nan
     else:
-        m["mean_ee_position_error"] = m["max_ee_position_error"] = np.nan
+        m["mean_ee_position_error"] = m["max_ee_position_error"] = m["final_ee_position_error"] = np.nan
 
     # 3. Target position smoothness (adjacent-frame diffs)
     sx, sy, sz = [cols.get(c, np.array([])) for c in ["target_pos_x", "target_pos_y", "target_pos_z"]]
@@ -205,7 +208,8 @@ def plot_all(cols: dict, out_dir):
     def draw_clipping(ax, c, t):
         clip = c.get("workspace_clipped", np.array([]))
         if len(clip) == 0 or np.all(np.isnan(clip)):
-            raise ValueError("No workspace_clipped data")
+            print("  [skip] workspace_clipping.png: no valid workspace_clipped data")
+            raise ValueError("No valid workspace_clipped data")
         ax.fill_between(t, 0, clip, color="red", alpha=0.5, label="clipped")
         ax.set_xlabel("Time [s]")
         ax.set_ylabel("Clipped (0/1)")

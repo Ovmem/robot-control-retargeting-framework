@@ -1,4 +1,4 @@
-﻿# scripts/run_preliminary_control_tuning.py
+# scripts/run_preliminary_control_tuning.py
 """Tune task-space control parameters using a fixed end-effector target trajectory.
 
 The goal is to find stable default control parameters for the real hand retargeting demo,

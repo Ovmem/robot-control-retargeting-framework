@@ -1,17 +1,8 @@
-﻿__pycache__/
-*.pyc
-.env
-.vscode/
-.idea/
-*.log
 MUJOCO_LOG.TXT
-
-# Temporary files
-temp/
-
-# Raw generated data (not committed)
+*.log
+__pycache__/
+.pytest_cache/
+results/hand_retargeting/runs/*/
 results/preliminary_control/raw/*.csv
-
-# Generated experiment logs
-results/debug_task_space_follow.csv
-results/hand_retargeting/runs/
+results/preliminary_control/figures/*.png
+results/preliminary_control/metrics/*.csv
